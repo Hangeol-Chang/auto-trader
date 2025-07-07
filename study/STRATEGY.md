@@ -1,7 +1,7 @@
 
 
-## 금융 데이터 분석
-### 기술적 분석
+## 1.3 금융 데이터 분석
+### 1.3.2 기술적 분석
 #### OHLC open-high-low-close)
 - 주식의 양봉 음봉. 맨날 보는 그거
 
@@ -27,3 +27,21 @@
 - MACD(t) = EMAs(t) - EMAl(t)
 - MACD_signal(t) = EMAn(t) where x(t) = MACD(t)
 - MCAD선이 시그널 선을 상향 돌파하면 매수, 하향 돌파하면 매도 사인으로 생각.
+
+##### 상대강도지수 (relative strength index, RSI)
+- 과매수, 침체 국면을 판단하는 보조지표
+- RSI 70 이상이면 과열, 30 이하면 침체 구간으로 봄
+
+#### 차트 패턴
+- Three Line Strike
+- Two Black Gapping
+- Three Black Cows
+- Evening Star
+- Abandoned Baby
+
+
+### 1.3.3 정서 분석
+- 투자자들의 정서를 판단하기 위한 분석 방법
+
+
+## 1.4 전통적인 퀀트 투자

@@ -19,7 +19,13 @@
 ### token.json
 ```json
 {
-    "APP_TOKEN": "",
-    "TOKEN_TIME": 0
+    "REAL": {
+        "APP_TOKEN": "",
+        "TOKEN_EXPIRE_TIME": 0
+    },
+    "VIRT": {
+        "APP_TOKEN": "",
+        "TOKEN_EXPIRE_TIME" : 0
+    }
 }
 ```
