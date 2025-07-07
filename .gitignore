@@ -3,6 +3,10 @@ build/
 *.log
 *.env
 
+# python
+__pycache__/
+*.pyc
+
 private/
 guide/
 reference/
