@@ -23,15 +23,14 @@ with open(token_path, 'r') as f:
     tokens = json.load(f)
 
 # 모의투자, 실전투자 구
-# INVEST_TYPE = "VIRT"    # 모의투자
-INVEST_TYPE = "REAL" # 실전투자
+INVEST_TYPE = "PROD" # 실전투자
+# INVEST_TYPE = "VPS"    # 모의투자
 
 APP_KEY = keys[INVEST_TYPE]["APP_KEY"]
 APP_SECRET = keys[INVEST_TYPE]["APP_SECRET"]
 ACCESS_TOKEN = tokens[INVEST_TYPE]["APP_TOKEN"]
 
 URL_BASE = keys[INVEST_TYPE]["URL_BASE"]
-
 
 def auth_validate():
     # acces_time을 검사해서, 5시간 이상 지났으면 재발급
@@ -47,7 +46,7 @@ def auth_validate():
             # 토큰 재발급
             auth()
         else:
-            print(f"토큰 유효시간 확인: {token_expire_time} (현재시간: {now}) - 유효합니다.")
+            print(f"토큰 유효시간 확인: {token_expire_time} (현재시간: {now}) - 유효합니다.\n")
             pass
 
 def auth():

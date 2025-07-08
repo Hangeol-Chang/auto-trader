@@ -6,7 +6,11 @@ build/
 # python
 __pycache__/
 *.pyc
+*.pyo
+
+*.yaml
+*.yml
 
 private/
 guide/
-reference/
+sample/

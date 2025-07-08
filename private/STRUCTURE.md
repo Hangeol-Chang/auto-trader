@@ -1,13 +1,13 @@
 ## keys.json
 ```json
 {
-    "REAL": {
+    "PROD": {
         "CANO": 00000000,
         "APP_KEY": "---",
         "APP_SECRET": "---",
         "URL_BASE": "https://openapi.koreainvestment.com:9443"
     },
-    "VIRT": {
+    "VPS": {
         "CANO": 00000000,
         "APP_KEY": "---",
         "APP_SECRET": "---",
@@ -19,11 +19,11 @@
 ### token.json
 ```json
 {
-    "REAL": {
+    "PROD": {
         "APP_TOKEN": "",
         "TOKEN_EXPIRE_TIME": 0
     },
-    "VIRT": {
+    "VPS": {
         "APP_TOKEN": "",
         "TOKEN_EXPIRE_TIME" : 0
     }
