@@ -4,7 +4,7 @@ import os
 #     from quantylab.rltrader.networks.networks_pytorch import Network, DNN, LSTMNetwork, CNN
 # else:
 #     from quantylab.rltrader.networks.networks_keras import Network, DNN, LSTMNetwork, CNN
-from quantylab.rltrader.networks.networks_keras import Network, DNN, LSTMNetwork, CNN
+from quantylab.networks.networks_keras import Network, DNN, LSTMNetwork, CNN
 
 __all__ = [
     'Network', 'DNN', 'LSTMNetwork', 'CNN'

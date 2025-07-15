@@ -128,8 +128,8 @@ class Agent:
             int(confidence * (self.max_trading_price - self.min_trading_price)),
             self.max_trading_price - self.min_trading_price), 0)
         trading_price = self.min_trading_price + added_trading_price
-        return max(int(trading_price / self.environment.get_price()), 1)))
-        
+        return max(int(trading_price / self.environment.get_price()), 1)
+
     # 에이전트 행동 수행 함수
     def act(self, action, confidence):
         if not self.validate_action(action):
