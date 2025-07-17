@@ -23,8 +23,8 @@ with open(token_path, 'r') as f:
     tokens = json.load(f)
 
 # 모의투자, 실전투자 구
-INVEST_TYPE = "PROD" # 실전투자
-# INVEST_TYPE = "VPS"    # 모의투자
+# INVEST_TYPE = "PROD" # 실전투자
+INVEST_TYPE = "VPS"    # 모의투자
 
 APP_KEY = keys[INVEST_TYPE]["APP_KEY"]
 APP_SECRET = keys[INVEST_TYPE]["APP_SECRET"]
@@ -46,7 +46,7 @@ def auth_validate():
             # 토큰 재발급
             auth()
         else:
-            print(f"토큰 유효시간 확인: {token_expire_time} (현재시간: {now}) - 유효합니다.\n")
+            # print(f"토큰 유효시간 확인: {token_expire_time} (현재시간: {now}) - 유효합니다.\n")
             pass
 
 def auth():
@@ -97,45 +97,6 @@ def change_invest_type(invest_type):
     URL_BASE = keys[INVEST_TYPE]["URL_BASE"]
 
     auth_validate()  # Validate the token after changing invest type
-
-## 공식 API들. 일단 미사용
-# 토큰 발급 받아 저장 (토큰값, 토큰 유효시간,1일, 6시간 이내 발급신청시는 기존 토큰값과 동일, 발급시 알림톡 발송)
-# def save_token(my_token, my_expired):
-#     valid_date = datetime.strptime(my_expired, '%Y-%m-%d %H:%M:%S')
-#     # print('Save token date: ', valid_date)
-#     with open(token_tmp, 'w', encoding='utf-8') as f:
-#         f.write(f'token: {my_token}\n')
-#         f.write(f'valid-date: {valid_date}\n')
-
-
-# # 토큰 확인 (토큰값, 토큰 유효시간_1일, 6시간 이내 발급신청시는 기존 토큰값과 동일, 발급시 알림톡 발송)
-# def read_token():
-#     try:
-#         # 토큰이 저장된 파일 읽기
-#         with open(token_tmp, encoding='UTF-8') as f:
-#             tkg_tmp = yaml.load(f, Loader=yaml.FullLoader)
-
-#         # 토큰 만료 일,시간
-#         exp_dt = datetime.strftime(tkg_tmp['valid-date'], '%Y-%m-%d %H:%M:%S')
-#         # 현재일자,시간
-#         now_dt = datetime.today().strftime("%Y-%m-%d %H:%M:%S")
-
-#         # print('expire dt: ', exp_dt, ' vs now dt:', now_dt)
-#         # 저장된 토큰 만료일자 체크 (만료일시 > 현재일시 인경우 보관 토큰 리턴)
-#         if exp_dt > now_dt:
-#             return tkg_tmp['token']
-#         else:
-#             # print('Need new token: ', tkg_tmp['valid-date'])
-#             return None
-#     except Exception as e:
-#         # print('read token error: ', e)
-#         return None
-
-# # 토큰 유효시간 체크해서 만료된 토큰이면 재발급처리
-# def _getBaseHeader():
-#     if _autoReAuth: reAuth()
-#     return copy.deepcopy(_base_headers)
-
-
+    
 if __name__ == "__main__" :
     auth_validate()
