@@ -1,6 +1,13 @@
+'''
+    TODO
+    - 전체 데이터 검색에 대해, 로컬 db를 먼저 뒤져보고 없으면 가져와야 함.
+    - 그리고 가져온 데이터는 무조건 저장해둘 것.
+'''
+
 import pandas as pd
 from datetime import datetime, timedelta
 import module.kis_fetcher as kis_fetcher
+
 
 
 ##############################################################################################
