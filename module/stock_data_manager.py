@@ -2,11 +2,16 @@
     TODO
     - 전체 데이터 검색에 대해, 로컬 db를 먼저 뒤져보고 없으면 가져와야 함.
     - 그리고 가져온 데이터는 무조건 저장해둘 것.
+    
+    ** COLUMN name 변환?
+    - 변환은 여기서 전부 처리해야 함.
+    - 이 파일 외부에서는 my_app의 column name만 사용할 것임.
 '''
 
 import pandas as pd
 from datetime import datetime, timedelta
 import module.kis_fetcher as kis_fetcher
+import module.column_mapper as column_mapper
 
 
 
@@ -33,7 +38,8 @@ def get_daily_price(div_code="J", itm_no="", period_code="D", adj_prc_code="1", 
     # Assuming 'output' is a dictionary that you want to convert to a DataFrame
     current_data = pd.DataFrame(res.getBody().output)  # getBody() kis_auth.py 존재
 
-    dataframe = current_data
+    # Convert KIS column names to my_app format with dual header (Korean + my_app)
+    dataframe = column_mapper.convert_dataframe_columns_dual_header(current_data, as_is="kis", to_be="my_app")
 
     return dataframe
 
@@ -78,7 +84,8 @@ def get_itempricechart_1(
     # output1: 현재가 정보 (실시간 상태)
     current_data = pd.DataFrame(res.getBody().output1, index=[0])  # 현재가 정보
 
-    dataframe = current_data
+    # Convert KIS column names to my_app format with dual header (Korean + my_app)
+    dataframe = column_mapper.convert_dataframe_columns_dual_header(current_data, as_is="kis", to_be="my_app")
     return dataframe
 
 def get_itempricechart_2(
@@ -114,6 +121,7 @@ def get_itempricechart_2(
     # output2: 기간별 OHLCV 히스토리 데이터 (차트 분석용)
     current_data = pd.DataFrame(res.getBody().output2)  # 기간별 일봉 데이터
 
-    dataframe = current_data
+    # Convert KIS column names to my_app format with dual header (Korean + my_app)
+    dataframe = column_mapper.convert_dataframe_columns_dual_header(current_data, as_is="kis", to_be="my_app")
 
     return dataframe

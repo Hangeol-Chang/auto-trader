@@ -78,5 +78,45 @@
             "adjusted_price_flag": "mod_yn",
             "revaluation_reason": "revl_issu_reas"
         }
+    },
+    "kor" : {
+        "table": {
+            "current_price": "현재 가격",
+            "previous_close": "전일 종가",
+            "open": "시가",
+            "high": "고가",
+            "low": "저가",
+            "previous_open": "전일 시가",
+            "previous_high": "전일 고가",
+            "previous_low": "전일 저가",
+            "price_change": "전일 대비",
+            "price_change_sign": "전일 대비 부호",
+            "price_change_rate": "전일 대비율",
+            "volume": "거래량",
+            "trade_amount": "거래대금",
+            "previous_volume": "전일 거래량",
+            "volume_change": "전일 대비 거래량",
+            "volume_turnover_rate": "거래회전율",
+            "ask_price": "매도호가",
+            "bid_price": "매수호가",
+            "stock_name": "종목명",
+            "stock_code": "종목코드",
+            "upper_limit": "상한가",
+            "lower_limit": "하한가",
+            "face_value": "액면가",
+            "listed_shares": "상장주식수",
+            "capital": "자본금",
+            "market_cap": "시가총액",
+            "per": "PER",
+            "eps": "EPS",
+            "pbr": "PBR",
+            "loan_balance_rate": "대출잔고율",
+            "date": "날짜",
+            "close": "종가",
+            "rights_code": "권리행사코드",
+            "split_ratio": "분할비율",
+            "adjusted_price_flag": "수정가격여부",
+            "revaluation_reason": "재평가사유"
+        }
     }
 }

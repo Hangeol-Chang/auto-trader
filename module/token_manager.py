@@ -50,7 +50,7 @@ def auth_validate():
             pass
 
 def auth():
-    print(f"인증 시작 | \nAPP_KEY: {APP_KEY} | \nAPP_SECRET: {APP_SECRET} | \nURL_BASE: {URL_BASE}")
+    # print(f"인증 시작 | \nAPP_KEY: {APP_KEY} | \nAPP_SECRET: {APP_SECRET} | \nURL_BASE: {URL_BASE}")
     headers = {"content-type":"application/json"}
     body = {
         "grant_type":"client_credentials",
