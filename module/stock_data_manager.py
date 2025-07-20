@@ -14,10 +14,12 @@
     - 데이터는 data/stock_cache/ 디렉토리에 저장됨
 '''
 
+import inspect
 import pandas as pd
 import os
 from datetime import datetime, timedelta
 from pykrx import stock
+import time
 
 import module.kis_fetcher as kis_fetcher
 import module.column_mapper as column_mapper
@@ -31,6 +33,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 _TRADING_DAY_CACHE = {}
 
 def get_trading_days(year: str) -> list:
+    # print(f"get_trading_days: {year}")
     """
     특정 연도의 모든 개장일을 CSV 파일 또는 pykrx에서 불러와 리스트로 반환합니다.
     """
@@ -58,7 +61,7 @@ def get_trading_days(year: str) -> list:
         # CSV 파일에서 개장일 불러오기
         try:
             df = pd.read_csv(file_path)
-            trading_days = [datetime.strptime(d, "%Y%m%d") for d in df['date']]
+            trading_days = [datetime.strptime(str(d), "%Y%m%d") for d in df['date']]
             _TRADING_DAY_CACHE[year] = trading_days
             return trading_days
         except Exception as e:
@@ -79,6 +82,29 @@ def get_trading_days(year: str) -> list:
         except Exception as e:
             print(f"[오류] pykrx에서 {year} 데이터 조회 실패: {e}")
             return []
+
+def split_dates_by_days(start_date: int, end_date: int, days=100) -> list:
+    start = datetime.strptime(str(start_date), "%Y%m%d")
+    end = datetime.strptime(str(end_date), "%Y%m%d")
+
+    date_list = []
+    current_start = start
+
+    while current_start <= end:
+        # 현재 시작 날짜의 연도 끝 (12월 31일)
+        year_end = datetime(current_start.year, 12, 31)
+        # 100일 뒤 날짜
+        days_end = current_start + timedelta(days=days - 1)
+        # 종료일은 세 조건 중 가장 빠른 것
+        current_end = min(year_end, days_end, end)
+
+        start_str = int(current_start.strftime("%Y%m%d"))
+        end_str = int(current_end.strftime("%Y%m%d"))
+        date_list.append((start_str, end_str))
+
+        current_start = current_end + timedelta(days=1)
+
+    return date_list
 
 def get_next_trading_day(base_date) -> str:
     """
@@ -103,11 +129,20 @@ def get_next_trading_day(base_date) -> str:
     base_date = datetime.strptime(base_date_str, "%Y%m%d")
     year = base_date.year
 
+    print(base_date)
+
     while True:
         trading_days = get_trading_days(str(year))
         future_days = [d for d in trading_days if d > base_date]
         if future_days:
             return future_days[0].strftime("%Y%m%d")
+    
+        # 찾을 수 없을 때.
+        # 올해 데이터를 뒤져본 것이라면 오늘 날짜를 return
+        if year == datetime.now().year:
+            return datetime.now().strftime("%Y%m%d")
+        
+        # 아니면 다음 연도로 넘어김.
         year += 1
 
 def get_previous_trading_day(base_date) -> str:
@@ -155,10 +190,12 @@ def get_trading_days_in_range(start_date_str: str, end_date_str: str) -> list:
     start_date = datetime.strptime(start_date_str, "%Y%m%d")
     end_date = datetime.strptime(end_date_str, "%Y%m%d")
 
+    print(f"get_trading_days_in_range: {start_date} ~ {end_date}")
     if start_date > end_date:
         raise ValueError("start_date must be before or equal to end_date")
 
     trading_days = []
+    print(f"get_trading_days_in_range: {start_date} ~ {end_date}")
     for year in range(start_date.year, end_date.year + 1):
         year_days = get_trading_days(str(year))
         trading_days.extend(year_days)
@@ -273,7 +310,6 @@ def get_daily_price(div_code="J", itm_no="", period_code="D", adj_prc_code="1", 
     }
     res = kis_fetcher._url_fetch(url, tr_id, tr_cont, params)
 
-    # print(res.getBody())  # 오류 원인 확인 필요시 사용
     # Assuming 'output' is a dictionary that you want to convert to a DataFrame
     current_data = pd.DataFrame(res.getBody().output)  # getBody() kis_auth.py 존재
 
@@ -350,76 +386,73 @@ def get_itempricechart_2(
     # CSV 파일명 생성 (API 이름에 output2를 추가해 구분)
     csv_filename = _generate_csv_filename(itm_no, "itemchartprice_history", period_code)
     csv_filepath = _get_csv_filepath(csv_filename)
-    
     # 기존 데이터 로드
-    existing_data = _load_existing_data(csv_filepath)
+    existing_data = None
 
     if start_date is None:
         start_date = (datetime.now()-timedelta(days=14)).strftime("%Y%m%d")   # 시작일자 값이 없으면 2주 전 일자
     if  end_date is None:
         end_date  = datetime.today().strftime("%Y%m%d")   # 종료일자 값이 없으면 현재일자
-
-    start_date = get_next_trading_day(start_date)
-    end_date = get_previous_trading_day(end_date)
-
     _ori_start_date = start_date
     _ori_end_date = end_date
 
-    print(f"조회 기간: {start_date} ~ {end_date}")
-    
-    # 요청된 날짜 범위의 데이터가 이미 있는지 확인
-    if existing_data is not None and not existing_data.empty:
-        # 기존 데이터에서 요청한 날짜 범위의 데이터가 모두 있는지 확인
-        date_list = get_trading_days_in_range(start_date, end_date)
+    date_list = split_dates_by_days(start_date, end_date, days=100)
+    print(f"분할된 날짜 목록: {date_list}")
+
+    result_data = None
+    for st_date, ed_date in date_list:
+        st_date = get_next_trading_day(st_date)
+        ed_date = get_previous_trading_day(ed_date)
+
+        print(f"조회 기간: {st_date} ~ {ed_date}")
+        if(ed_date < st_date):
+            st_date = ed_date
+
+        existing_data = _load_existing_data(csv_filepath)
+
         blank_dates = []
-        for date in date_list:
-            if not _check_date_exists_in_data(existing_data, date):
-                blank_dates.append(date)
+        # 여전히 비어있으면
+        if existing_data is not None and not existing_data.empty:
+            # 기존 데이터에서 요청한 날짜 범위의 데이터가 모두 있는지 확인
+            valid_date_list = get_trading_days_in_range(st_date, ed_date)
+            for date in valid_date_list:
+                if not _check_date_exists_in_data(existing_data, date):
+                    blank_dates.append(date)
+        else:
+            blank_dates = get_trading_days_in_range(st_date, ed_date)
 
-        # 모든 데이터가 존재하면
-        if blank_dates == []:
-            print(f"캐시된 데이터를 사용합니다: {csv_filename}")
-            # 요청한 날짜 범위의 데이터만 필터링해서 반환
-            try:
-                existing_data['date'] = pd.to_datetime(existing_data['date'], format='%Y%m%d', errors='coerce')
-                start_dt = pd.to_datetime(start_date, format='%Y%m%d')
-                end_dt = pd.to_datetime(end_date, format='%Y%m%d')
-                filtered_data = existing_data[
-                    (existing_data['date'] >= start_dt) & 
-                    (existing_data['date'] <= end_dt)
-                ].copy()
-                return filtered_data
-            except Exception as e:
-                print(f"데이터 필터링 중 오류: {e}")
+        # 빈 날짜가 있으면 빈 날짜 데이터 사용.
+        if blank_dates:
+            sst_date = blank_dates[0]  # 첫 번째 빈 날짜로 시작일을 조정
+            eed_date = blank_dates[-1]    # 마지막 빈 날짜로 종료일을 조정
 
-        start_date = blank_dates[0]  # 첫 번째 빈 날짜로 시작일을 조정
-        end_date = blank_dates[-1]    # 마지막 빈 날짜로 종료일을 조정
+            url = '/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice'
+            tr_id = "FHKST03010100"  # 주식현재가 회원사
 
-    url = '/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice'
-    tr_id = "FHKST03010100"  # 주식현재가 회원사
-
-    params = {
-        "FID_COND_MRKT_DIV_CODE": div_code, # 시장 분류 코드  J : 주식/ETF/ETN, W: ELW
-        "FID_INPUT_ISCD": itm_no,           # 종목번호 (6자리) ETN의 경우, Q로 시작 (EX. Q500001)
-        "FID_INPUT_DATE_1": start_date,   # 입력 날짜 (시작) 조회 시작일자 (ex. 20220501)
-        "FID_INPUT_DATE_2": end_date,    # 입력 날짜 (종료) 조회 종료일자 (ex. 20220530)
-        "FID_PERIOD_DIV_CODE": period_code, # 기간분류코드 D:일봉, W:주봉, M:월봉, Y:년봉
-        "FID_ORG_ADJ_PRC": adj_prc          # 수정주가 0:수정주가 1:원주가
-    }
+            params = {
+                "FID_COND_MRKT_DIV_CODE": div_code, # 시장 분류 코드  J : 주식/ETF/ETN, W: ELW
+                "FID_INPUT_ISCD": itm_no,           # 종목번호 (6자리) ETN의 경우, Q로 시작 (EX. Q500001)
+                "FID_INPUT_DATE_1": sst_date.strftime("%Y%m%d"),   # 입력 날짜 (시작) 조회 시작일자 (ex. 20220501)
+                "FID_INPUT_DATE_2": eed_date.strftime("%Y%m%d"),   # 입력 날짜 (종료) 조회 종료일자 (ex. 20220530)
+                "FID_PERIOD_DIV_CODE": period_code, # 기간분류코드 D:일봉, W:주봉, M:월봉, Y:년봉
+                "FID_ORG_ADJ_PRC": adj_prc          # 수정주가 0:수정주가 1:원주가
+            }
     
-    print("API에서 새로운 데이터를 가져옵니다...")
-    res = kis_fetcher._url_fetch(url, tr_id, tr_cont, params)
+            print("API에서 새로운 데이터를 가져옵니다...")
+            res = kis_fetcher._url_fetch(url, tr_id, tr_cont, params)
 
-    # output2: 기간별 OHLCV 히스토리 데이터 (차트 분석용)
-    current_data = pd.DataFrame(res.getBody().output2)  # 기간별 일봉 데이터
+            # output2: 기간별 OHLCV 히스토리 데이터 (차트 분석용)
+            current_data = pd.DataFrame(res.getBody().output2)  # 기간별 일봉 데이터
+            # Convert KIS column names to my_app format with dual header (Korean + my_app)
+            dataframe = column_mapper.convert_dataframe_columns(current_data, as_is="kis", to_be="my_app")
+            # 새로운 데이터를 CSV에 저장 (기존 데이터와 병합)
+            result_data = _merge_and_save_data(existing_data, dataframe, csv_filepath)
 
-    # Convert KIS column names to my_app format with dual header (Korean + my_app)
-    dataframe = column_mapper.convert_dataframe_columns(current_data, as_is="kis", to_be="my_app")
+            print("API 요청 대기시간을 기다립니다...")
+            time.sleep(1)
 
-    # 새로운 데이터를 CSV에 저장 (기존 데이터와 병합)
-    result_data = _merge_and_save_data(existing_data, dataframe, csv_filepath)
-
-    # _ori_start_date와 _ori_end_date를 사용하여 원래 요청한 날짜 범위로 필터링
+    print("?")
+    # 전체 기간 데이터 조회가 끝난 후, 한번에 필터링하여 반환
     try:
         result_data['date'] = pd.to_datetime(result_data['date'], format='%Y%m%d', errors='coerce')
         start_dt = pd.to_datetime(_ori_start_date, format='%Y%m%d')

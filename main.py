@@ -80,7 +80,7 @@ if __name__ == "__main__":
 
     test_data = stock_data_manager.get_itempricechart_2(
         div_code="J", itm_no="005930",  # 삼성전자
-        start_date=20250401, end_date=20250615, period_code="D", adj_prc="1"
+        start_date=20240101, period_code="D", adj_prc="1"
     )
     print(test_data, "\n\n----\n\n")
     time.sleep(1)
