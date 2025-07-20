@@ -93,9 +93,9 @@ if __name__ == "__main__":
     print(f"Ticker: {ticker}")
 
 
-    test_data = stock_data_manager.process_macd_data(
+    test_data = stock_data_manager.get_processed_data(
         itm_no="005930",  # 삼성전자
-        start_date=20240101, period_code="D"
+        start_date=20210101, period_code="M"
     )
     print(test_data, "\n\n----\n\n")
 

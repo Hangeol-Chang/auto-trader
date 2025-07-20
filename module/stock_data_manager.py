@@ -724,7 +724,7 @@ def _ensure_processed_data_directory():
     if not os.path.exists(PROCESSED_DATA_DIR):
         os.makedirs(PROCESSED_DATA_DIR)
 
-def process_macd_data(
+def get_processed_data(
         itm_no="",      # 종목번호 (6자리) ETN의 경우, Q로 시작 (EX. Q500001)
         start_date=None, end_date=None, period_code="D",
         short_window=12, long_window=26, signal_window=9,
@@ -746,10 +746,13 @@ def process_macd_data(
     Returns:
         pd.DataFrame: 처리된 데이터프레임
     """
-    print(f"MACD 데이터 처리 시작: {itm_no} ({start_date} ~ {end_date})")
+    if start_date is None:
+        start_date = (datetime.now()-timedelta(days=14)).strftime("%Y%m%d")   # 시작일자 값이 없으면 2주 전 일자
+    if  end_date is None:
+        end_date  = datetime.today().strftime("%Y%m%d")   # 종료일자 값이 없으면 현재일자
     
     # 처리된 데이터 파일명 생성 규칙: {종목번호}_macd_{기간코드}.csv
-    processed_filename = f"{itm_no}_macd_{period_code}.csv"
+    processed_filename = f"{itm_no}_processed_{period_code}.csv"
     processed_filepath = os.path.join(PROCESSED_DATA_DIR, processed_filename)
     
     # 캐시된 처리 데이터가 있는지 확인
@@ -757,6 +760,7 @@ def process_macd_data(
         try:
             existing_processed = pd.read_csv(processed_filepath)
             # 요청한 날짜 범위가 이미 처리되어 있는지 확인
+                
             if not existing_processed.empty and 'date' in existing_processed.columns:
                 existing_processed['date'] = pd.to_datetime(existing_processed['date'], format='%Y%m%d', errors='coerce')
                 
@@ -769,6 +773,8 @@ def process_macd_data(
                         (existing_processed['date'] >= start_dt) & 
                         (existing_processed['date'] <= end_dt)
                     ]
+                    print(f"요청한 날짜 범위: {start_dt} ~ {end_dt}")
+                    print(f"캐시된 데이터에서 필터링된 행 수: {(filtered_existing)}")
                     
                     if len(filtered_existing) > 0:
                         print(f"캐시된 MACD 데이터를 사용합니다: {processed_filename}")
@@ -793,8 +799,6 @@ def process_macd_data(
             print("원시 데이터를 가져올 수 없습니다.")
             return pd.DataFrame()
         
-        print(f"원시 데이터 행 수: {len(raw_data)}")
-        
         # date, close 컬럼만 유지
         if 'date' not in raw_data.columns or 'close' not in raw_data.columns:
             print(f"필수 컬럼이 없습니다. 사용 가능한 컬럼: {raw_data.columns.tolist()}")
@@ -809,16 +813,20 @@ def process_macd_data(
         
         # close를 숫자로 변환
         processed_data['close'] = pd.to_numeric(processed_data['close'], errors='coerce')
-        
         # 결측값 제거
         processed_data = processed_data.dropna()
         
         if len(processed_data) < max(long_window, center_window):
             print(f"데이터가 부족합니다. 최소 {max(long_window, center_window)}일 이상의 데이터가 필요합니다.")
             return pd.DataFrame()
-        
-        print("MACD 지표 계산 중...")
-        
+                
+        print("PROCESSING ...")
+
+        print("- Rolling center 계산 중...")
+        processed_data['center'] = processed_data['close'].rolling(window=center_window).mean()
+        processed_data['upper_band'] = processed_data['center'] + 2 * processed_data['close'].rolling(window=center_window).std()
+        processed_data['lower_band'] = processed_data['center'] - 2 * processed_data['close'].rolling(window=center_window).std()
+
         # MACD 계산
         # EMA 계산
         exp1 = processed_data['close'].ewm(span=short_window).mean()  # 12일 EMA
@@ -832,23 +840,14 @@ def process_macd_data(
         
         # MACD Histogram
         processed_data['macd_histogram'] = processed_data['macd'] - processed_data['macd_signal']
-        
-        print("Rolling center 계산 중...")
-        
-        # Rolling center 추가 (중심값 기준 rolling mean)
-        processed_data['center'] = processed_data['close'].rolling(
-            window=center_window, 
-            center=True, 
-            min_periods=1
-        ).mean()
-        
+
         # 추가적인 기술적 지표들
         processed_data['sma_short'] = processed_data['close'].rolling(window=short_window).mean()
         processed_data['sma_long'] = processed_data['close'].rolling(window=long_window).mean()
-        
+
         # 날짜를 다시 문자열로 변환 (저장을 위해)
         processed_data['date'] = processed_data['date'].dt.strftime('%Y%m%d')
-        
+
         # 처리된 데이터 저장
         _ensure_processed_data_directory()
         processed_data.to_csv(processed_filepath, index=False, encoding='utf-8-sig')
