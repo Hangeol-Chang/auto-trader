@@ -1,5 +1,6 @@
 {
     "my_app": {
+        "type": "raw",
         "table": {
             "current_price": "current_price",
             "previous_close": "previous_close",
@@ -40,6 +41,7 @@
         }
     },
     "kis" : {
+        "type": "raw",
         "table": {
             "current_price": "stck_prpr",
             "previous_close": "stck_prdy_clpr",
@@ -79,7 +81,14 @@
             "revaluation_reason": "revl_issu_reas"
         }
     },
+    "pykrx": {
+        "type": "raw",
+        "table": {
+            
+        }
+    },
     "kor" : {
+        "type": "raw",
         "table": {
             "current_price": "현재 가격",
             "previous_close": "전일 종가",
@@ -117,6 +126,30 @@
             "split_ratio": "분할비율",
             "adjusted_price_flag": "수정가격여부",
             "revaluation_reason": "재평가사유"
+        }
+    },
+    "processed": {
+        "type": "processed",
+        "table": {
+            "date": "date",
+            "close": "close",
+            "open": "open",
+            "high": "high",
+            "low": "low",
+            "volume": "volume",
+            "trade_amount": "trade_amount",
+            "price_change": "price_change",
+            "price_change_sign": "price_change_sign",
+            "price_change_rate": "price_change_rate",
+            "per": "per",
+            "eps": "eps",
+            "pbr": "pbr",
+
+            "ma5": "ma5",
+            "ma10": "ma10",
+            "ma20": "ma20",
+            "ma60": "ma60",
+            "ma120": "ma120"
         }
     }
 }

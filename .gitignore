@@ -15,4 +15,4 @@ __pycache__/
 private/
 guide/
 sample/
-data/*.csv
+data/**/*.csv
