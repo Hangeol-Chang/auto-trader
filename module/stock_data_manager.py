@@ -15,6 +15,7 @@
 '''
 
 import inspect
+from unittest import result
 import pandas as pd
 import os
 from datetime import datetime, timedelta
@@ -207,6 +208,37 @@ def get_trading_days_in_range(start_date_str: str, end_date_str: str) -> list:
     filtered_days = [d for d in trading_days if start_date <= d <= end_date]
     return sorted(filtered_days)
 
+def get_valid_date_range(start_date=None, end_date=None, day_padding=14):
+    if start_date is None: # 시작일자 값이 없으면 day_padding 전 일자
+        start_date = (datetime.now()-timedelta(days=day_padding)).strftime("%Y%m%d")   
+    if  end_date is None:# 종료일자 값이 없으면 현재일자
+        end_date  = datetime.today().strftime("%Y%m%d")   
+
+    return start_date, end_date
+
+def get_offset_date(base_date, offset_days):
+    """
+    기준 날짜에서 지정된 일수만큼 오프셋된 날짜를 반환합니다.
+    
+    Args:
+        base_date (str or int): 기준 날짜 (YYYYMMDD 형식의 문자열 또는 정수)
+        offset_days (int): 오프셋할 일수 (양수: 미래, 음수: 과거)
+        
+    Returns:
+        str: YYYYMMDD 형식의 오프셋된 날짜
+    """
+    if isinstance(base_date, int):
+        base_date = str(base_date)
+    
+    if len(base_date) != 8 or not base_date.isdigit():
+        raise ValueError(f"날짜는 8자리 숫자여야 합니다. 입력값: {base_date}")
+    
+    base_date = datetime.strptime(base_date, "%Y%m%d")
+    offset_date = base_date + timedelta(days=offset_days)
+    
+    return offset_date.strftime("%Y%m%d")
+
+
 ##############################################################################################
 # 데이터 저장 관련 로직
 ##############################################################################################
@@ -329,7 +361,7 @@ def get_daily_price(
 
 ##############################################################################################
 # [국내주식] 기본시세 > 국내주식기간별시세(일/주/월/년)
-# 국내주식기간별시세(일/주/월/년) API입니다.d
+# 국내주식기간별시세(일/주/월/년) API입니다.
 # 실전계좌/모의계좌의 경우, 한 번의 호출에 최대 100건까지 확인 가능합니다.
 ##############################################################################################
 # 국내주식기간별시세(일/주/월/년) Object를 DataFrame 으로 반환
@@ -345,10 +377,7 @@ def get_itempricechart_1(
     adj_prc="0",    # 수정주가 0:수정주가 1:원주가
     dataframe=None
 ) :    
-    if start_date is None:
-        start_date = (datetime.now()-timedelta(days=14)).strftime("%Y%m%d")   # 시작일자 값이 없으면 현재일자
-    if  end_date is None:
-        end_date  = datetime.today().strftime("%Y%m%d")   # 종료일자 값이 없으면 현재일자
+    start_date, end_date = get_valid_date_range(start_date, end_date, day_padding=14)
 
     start_date = get_next_trading_day(start_date)
     end_date = get_previous_trading_day(end_date)
@@ -395,10 +424,7 @@ def get_itempricechart_2(
     # 기존 데이터 로드
     existing_data = None
 
-    if start_date is None:
-        start_date = (datetime.now()-timedelta(days=14)).strftime("%Y%m%d")   # 시작일자 값이 없으면 2주 전 일자
-    if  end_date is None:
-        end_date  = datetime.today().strftime("%Y%m%d")   # 종료일자 값이 없으면 현재일자
+    start_date, end_date = get_valid_date_range(start_date, end_date, day_padding=14)
     _ori_start_date = start_date
     _ori_end_date = end_date
 
@@ -459,10 +485,12 @@ def get_itempricechart_2(
         else:
             # date 병합
             print(f"기존 데이터에서 {st_date} ~ {ed_date} 기간의 데이터를 찾았습니다. API 호출을 건너뜁니다.")
-            if result_data is None:
-                result_data = existing_data.copy() if existing_data is not None else pd.DataFrame(columns=['date', 'open', 'high', 'low', 'close', 'volume'])
-            else:
-                result_data = pd.concat([result_data, existing_data], ignore_index=True)
+            if existing_data is not None and not existing_data.empty:
+                filtered_data = existing_data[
+                    (existing_data['date'] >= st_date) & 
+                    (existing_data['date'] <= ed_date)
+                ].copy()
+                result_data = pd.concat([result_data, filtered_data], ignore_index=True)
 
     # 전체 기간 데이터 조회가 끝난 후, 한번에 필터링하여 반환
     try:
@@ -527,7 +555,7 @@ def get_full_ticker(include_screening_data=True):
         all_tickers = pd.DataFrame()
         
         # 시장별로 데이터 수집
-        markets = ["KOSPI", "KOSDAQ", "KONEX"]
+        markets = ["KOSPI", "KOSDAQ"]
         
         for market_name in markets:
             print(f"{market_name} 종목 조회 중...")
@@ -719,17 +747,25 @@ def get_full_ticker(include_screening_data=True):
 ##############################################################################################
 PROCESSED_DATA_DIR = os.path.join(DATA_DIR, "processed")
 
+
+##############################################################################################
+# 처리된 데이터 저장 디렉토리 생성
+##############################################################################################
 def _ensure_processed_data_directory():
     """처리된 데이터 저장 디렉토리가 없으면 생성"""
     if not os.path.exists(PROCESSED_DATA_DIR):
         os.makedirs(PROCESSED_DATA_DIR)
 
-def get_processed_data(
+###############################################################################################
+# daily data를 이용해서 계산할 지표 전부 처리
+###############################################################################################
+def get_processed_data_D(
         itm_no="",      # 종목번호 (6자리) ETN의 경우, Q로 시작 (EX. Q500001)
-        start_date=None, end_date=None, period_code="D",
+        start_date=None, end_date=None,
         short_window=12, long_window=26, signal_window=9,
         center_window=20
     ):
+    period_code = "D"  # 기간코드 (일봉) 
     """
     주식 데이터를 가져와서 MACD 지표와 rolling center를 계산하여 저장
     
@@ -737,7 +773,6 @@ def get_processed_data(
         itm_no (str): 종목번호 (6자리)
         start_date (str): 시작날짜 YYYYMMDD
         end_date (str): 종료날짜 YYYYMMDD  
-        period_code (str): 기간코드 (D/W/M/Y)
         short_window (int): MACD 단기 이동평균 기간 (기본: 12)
         long_window (int): MACD 장기 이동평균 기간 (기본: 26)
         signal_window (int): MACD 신호선 기간 (기본: 9)
@@ -746,10 +781,7 @@ def get_processed_data(
     Returns:
         pd.DataFrame: 처리된 데이터프레임
     """
-    if start_date is None:
-        start_date = (datetime.now()-timedelta(days=14)).strftime("%Y%m%d")   # 시작일자 값이 없으면 2주 전 일자
-    if  end_date is None:
-        end_date  = datetime.today().strftime("%Y%m%d")   # 종료일자 값이 없으면 현재일자
+    start_date, end_date = get_valid_date_range(start_date, end_date, day_padding = 14)
     
     # 처리된 데이터 파일명 생성 규칙: {종목번호}_macd_{기간코드}.csv
     processed_filename = f"{itm_no}_processed_{period_code}.csv"
@@ -768,7 +800,7 @@ def get_processed_data(
                     start_dt = pd.to_datetime(start_date, format='%Y%m%d')
                     end_dt = pd.to_datetime(end_date, format='%Y%m%d')
                     
-                    # 요청한 범위의 데이터가 모두 있는지 확인
+                    # 요청한 범위의 데이터가 모두 있는지 확인 -> TODO : 이부분 로직 바꿔야함.
                     filtered_existing = existing_processed[
                         (existing_processed['date'] >= start_dt) & 
                         (existing_processed['date'] <= end_dt)
@@ -777,23 +809,23 @@ def get_processed_data(
                     print(f"캐시된 데이터에서 필터링된 행 수: {(filtered_existing)}")
                     
                     if len(filtered_existing) > 0:
-                        print(f"캐시된 MACD 데이터를 사용합니다: {processed_filename}")
+                        print(f"캐시된 데이터를 사용합니다: {processed_filename}")
                         # 날짜를 다시 문자열로 변환
                         filtered_existing['date'] = filtered_existing['date'].dt.strftime('%Y%m%d')
                         return filtered_existing
         except Exception as e:
-            print(f"기존 MACD 데이터 확인 중 오류: {e}")
-    
+            print(f"기존 데이터 확인 중 오류: {e}")
+
+    # processed_filepath가 존재하지 않거나 유효한 데이터가 없으면 새로 만들기
     try:
         # get_itempricechart_2에서 원시 데이터 가져오기
-        print("원시 주식 데이터 가져오는 중...")
+        print(f"getting raw stock data '{itm_no}' | '{period_code}' ...")
         raw_data = get_itempricechart_2(
             itm_no=itm_no,
             start_date=start_date,
             end_date=end_date,
             period_code=period_code
         )
-        print(raw_data)
         
         if raw_data is None or raw_data.empty:
             print("원시 데이터를 가져올 수 없습니다.")
@@ -806,11 +838,11 @@ def get_processed_data(
         
         # 필요한 컬럼만 선택하고 복사본 생성
         processed_data = raw_data[['date', 'close']].copy()
-        
+
         # 날짜 기준으로 정렬
         processed_data['date'] = pd.to_datetime(processed_data['date'], format='%Y%m%d', errors='coerce')
         processed_data = processed_data.sort_values('date').reset_index(drop=True)
-        
+
         # close를 숫자로 변환
         processed_data['close'] = pd.to_numeric(processed_data['close'], errors='coerce')
         # 결측값 제거
@@ -874,4 +906,93 @@ def get_processed_data(
         
     except Exception as e:
         print(f"MACD 데이터 처리 실패: {e}")
+        return pd.DataFrame()
+    
+def get_processed_data_M(
+        itm_no="",      # 종목번호 (6자리) ETN의 경우, Q로 시작 (EX. Q500001)
+        start_date=None, end_date=None,
+    ):
+    period_code = "M"  # 기간코드 (월봉)
+
+    """
+    월봉 데이터를 가져와서 처리된 데이터를 반환합니다.
+    Args:
+        itm_no (str): 종목번호 (6자리)
+        start_date (str): 시작날짜 YYYYMMDD
+        end_date (str): 종료날짜 YYYYMMDD
+    """
+
+    start_date, end_date = get_valid_date_range(start_date, end_date, day_padding=14)
+    # start_date를 1년 전으로 땡김
+    start_date = get_offset_date(start_date, -365)
+
+    processed_filename = f"{itm_no}_processed_{period_code}.csv"
+    processed_filepath = os.path.join(PROCESSED_DATA_DIR, processed_filename)
+
+    if os.path.exists(processed_filepath):
+        try:
+            existing_processed = pd.read_csv(processed_filepath)
+            if not existing_processed.empty and 'date' in existing_processed.columns:
+                existing_processed['date'] = pd.to_datetime(existing_processed['date'], format='%Y%m%d', errors='coerce')
+                
+                if start_date and end_date:
+                    start_dt = pd.to_datetime(start_date, format='%Y%m%d')
+                    end_dt = pd.to_datetime(end_date, format='%Y%m%d')
+                    
+                    # 요청한 범위의 데이터가 모두 있는지 확인 -> TODO : 이부분 로직 바꿔야함.
+                    filtered_existing = existing_processed[
+                        (existing_processed['date'] >= start_dt) & 
+                        (existing_processed['date'] <= end_dt)
+                    ]
+                    
+                    if len(filtered_existing) > 0:
+                        print(f"캐시된 월봉 데이터를 사용합니다: {processed_filename}")
+                        filtered_existing['date'] = filtered_existing['date'].dt.strftime('%Y%m%d')
+                        return filtered_existing
+        except Exception as e:
+            print(f"기존 월봉 데이터 확인 중 오류: {e}")
+
+    try:
+        print(f"getting raw stock data '{itm_no}' | '{period_code}' ...")
+
+        raw_data = get_itempricechart_2(
+            itm_no=itm_no,
+            start_date=start_date,
+            end_date=end_date,
+            period_code=period_code
+        )
+        
+        if raw_data is None or raw_data.empty:
+            print("원시 월봉 데이터를 가져올 수 없습니다.")
+            return pd.DataFrame()
+
+        # date, close 컬럼만 유지
+        if 'date' not in raw_data.columns or 'close' not in raw_data.columns:
+            print(f"필수 컬럼이 없습니다. 사용 가능한 컬럼: {raw_data.columns.tolist()}")
+            return pd.DataFrame()
+
+        # 필요한 컬럼만 선택하고 복사본 생성
+        processed_data = raw_data[['date', 'close']].copy()
+        
+        # 날짜 기준으로 정렬
+        processed_data['date'] = pd.to_datetime(processed_data['date'], format='%Y%m%d', errors='coerce')
+        processed_data = processed_data.sort_values('date').reset_index(drop=True)
+
+        # close를 숫자로 변환
+        processed_data['close'] = pd.to_numeric(processed_data['close'], errors='coerce')
+        # 결측값 제거
+        processed_data = processed_data.dropna()
+
+        print("PROCESSING ...")
+
+        processed_data['BF_1M_close'] = processed_data['close'].shift(1)  # 이전 월봉 종가
+        processed_data['BF_12M_close'] = processed_data['close'].shift(12)  # 12개월 전 종가
+        
+        # processed_data['trade'] = 
+
+        print(processed_data)
+        return processed_data
+
+    except Exception as e:
+        print(f"월봉 원시 데이터 가져오기 실패: {e}")
         return pd.DataFrame()

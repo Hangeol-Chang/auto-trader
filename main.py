@@ -92,12 +92,18 @@ if __name__ == "__main__":
     ticker = stock_data_manager.get_full_ticker()
     print(f"Ticker: {ticker}")
 
-
-    test_data = stock_data_manager.get_processed_data(
+    test_data = stock_data_manager.get_processed_data_D(
         itm_no="005930",  # 삼성전자
-        start_date=20210101, period_code="M"
+        start_date=20240101, end_date=20241231
     )
     print(test_data, "\n\n----\n\n")
+
+    # test_data = 
+    # stock_data_manager.get_processed_data_M(
+    #     itm_no="005930",  # 삼성전자
+    #     start_date=20210101, 
+    # )
+    # print(test_data, "\n\n----\n\n")
 
     # eel.init("web")
     # eel.start("web/index.html", size=(800, 600))
