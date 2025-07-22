@@ -1,109 +1,68 @@
+import multiprocessing
 import time
-import eel
-
-import argparse
-import json
 import logging
 
-from module import token_manager
-from module import stock_data_manager
-from quantylab import utils
+from module import visualizer
+from module import trader
 
 # INVEST_TYPE = "PROD"  # 실전투자
 INVEST_TYPE = "VPS"    # 모의투자
 
-'''
-    # rltrader 기본 실행.
-    python main.py
-    --mode train --ver v3 --name 005930 --stock_code 005930
-    --rl_method dqn --start_date 20180101 --end_date 20191230
-'''
+def setup_logging():
+    """로깅 설정"""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
 
-'''
-    # args desription
-    --mode: 
-        - train : 학습 모드
-        - test : 테스트 모드
-        - update : 모델 업데이트 모드
-        - predict : 예측 모드
+def run_flask_server():
+    """플라스크 서버 실행"""
+    try:
+        print("Starting Flask server...")
+        visualizer.run_server()
+    except Exception as e:
+        print(f"Flask server error: {e}")
 
-    --name: 실행 이름
-    --stock_code: 종목 코드 (예: 005930) -> 추후에는 이것조차 자동으로 하도록
-
-    --rl_method: 
-        - dqn
-        - pg
-        - ac
-        - a2c
-        - a3c
-        - monkey
-
-    --net: 
-        - dnn
-        - lstm
-        - cnn
-        - monkey
-
-    --backend: 
-        - pytorch
-        - tensorflow
-        - plaidml
-
-    --start_date: 시작 날짜 (예: 20200101)
-    --end_date: 종료 날짜 (예: 20201231)
-    --lr: 학습률 (예: 0.0001)
-    --discount_factor: 할인율 (예: 0.7)
-'''
+def run_trader():
+    """트레이더 앱 실행"""
+    try:
+        print("Starting Trader app...")
+        trader.run_trader()
+    except Exception as e:
+        print(f"Trader app error: {e}")
 
 if __name__ == "__main__":
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument('--mode', choices=['train', 'test', 'update', 'predict'], default='train')
-    # parser.add_argument('--name', default=utils.get_time_str())
-    # parser.add_argument('--stock_code', nargs='+')
-    # parser.add_argument('--rl_method', choices=['dqn', 'pg', 'ac', 'a2c', 'a3c', 'monkey'])
-    # parser.add_argument('--net', choices=['dnn', 'lstm', 'cnn', 'monkey'], default='dnn')
-    # parser.add_argument('--backend', choices=['pytorch', 'tensorflow', 'plaidml'], default='pytorch')
-    # parser.add_argument('--start_date', default='20200101')
-    # parser.add_argument('--end_date', default='20201231')
-    # parser.add_argument('--lr', type=float, default=0.0001)
-    # parser.add_argument('--discount_factor', type=float, default=0.7)
-    # parser.add_argument('--balance', type=int, default=100000000)
-
-    # keys = token_manager.get_keys()
-
-    # test_data = stock_data_manager.get_itempricechart_1(
-    #     div_code="J", itm_no="005930",  # 삼성전자
-    #     start_date=20250701, end_date=20250715, period_code="D"
-    # )
-    # print(test_data, "\n\n----\n\n")
-
-    # test_data = stock_data_manager.get_itempricechart_2(
-    #     div_code="J", itm_no="005930",  # 삼성전자
-    #     start_date=20240101, period_code="D"
-    # )
-    # print(test_data, "\n\n----\n\n")
-    # time.sleep(1)
-    # test_data = stock_data_manager.get_daily_price(
-    #     div_code="J", itm_no="005930",  # 삼성전자
-    #     period_code="D"
-    # )
-    # print(test_data, "\n\n----\n\n")
+    setup_logging()
     
-    ticker = stock_data_manager.get_full_ticker()
-    print(f"Ticker: {ticker}")
-
-    test_data = stock_data_manager.get_processed_data_D(
-        itm_no="005930",  # 삼성전자
-        start_date=20240101, end_date=20241231
-    )
-    print(test_data, "\n\n----\n\n")
-
-    # test_data = 
-    # stock_data_manager.get_processed_data_M(
-    #     itm_no="005930",  # 삼성전자
-    #     start_date=20210101, 
-    # )
-    # print(test_data, "\n\n----\n\n")
-
-    # eel.init("web")
-    # eel.start("web/index.html", size=(800, 600))
+    # 멀티프로세싱으로 필요한 모듈들을 실행
+    processes = []
+    
+    try:
+        # 플라스크 서버 프로세스
+        flask_process = multiprocessing.Process(target=run_flask_server)
+        flask_process.start()
+        processes.append(flask_process)
+        
+        # 트레이더 앱 프로세스  
+        # trader_process = multiprocessing.Process(target=run_trader)
+        # trader_process.start()
+        # processes.append(trader_process)
+        
+        print("All processes started. Press Ctrl+C to exit...")
+        
+        # 모든 프로세스가 실행될 때까지 대기
+        for process in processes:
+            process.join()
+            
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+        
+        # 모든 프로세스 종료
+        for process in processes:
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=5)
+                if process.is_alive():
+                    process.kill()
+        
+        print("All processes terminated.")

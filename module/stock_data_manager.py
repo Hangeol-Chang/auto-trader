@@ -973,7 +973,7 @@ def get_processed_data_M(
 
         # 필요한 컬럼만 선택하고 복사본 생성
         processed_data = raw_data[['date', 'close']].copy()
-        
+
         # 날짜 기준으로 정렬
         processed_data['date'] = pd.to_datetime(processed_data['date'], format='%Y%m%d', errors='coerce')
         processed_data = processed_data.sort_values('date').reset_index(drop=True)

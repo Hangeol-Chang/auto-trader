@@ -3,11 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-
-    <link rel="stylesheet" href="./style.css">
+    <title>AT</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    eel testing
+    <div id="header">
+        <h1>Auto Trader Dashboard</h1>
+        <nav>
+            <button>nav 1</button>
+            <button>nav 2</button>
+        </nav>
+    </div>
+
+    <div id="body">
+        <div class="unit">
+            <h2>
+                BackTest Unit
+            </h2>
+            <label for="ticker">Ticker:</label>
+            <input type="text" placeholder="Ticker (예: 005930)" id="ticker" value="005930">
+            <br>
+            <label for="start_date">Start Date:</label>
+            <input type="text" placeholder="start date (YYYYMMDD)" id="start_date" value="20240101">
+            <br>
+            <label for="end_date">End Date:</label>
+            <input type="text" placeholder="end date (YYYYMMDD)" id="end_date" value="20241231">
+
+            <br>
+            <button onclick="executeBacktest()" id="backtest-btn">Backtest Execute</button>
+            
+            <!-- 결과 표시 영역 -->
+            <div id="backtest-result" style="margin-top: 20px;"></div>
+        </div>
+    </div>
+
+    <script>
+        async function executeBacktest() {
+            const ticker = document.getElementById('ticker').value;
+            const startDate = document.getElementById('start_date').value;
+            const endDate = document.getElementById('end_date').value;
+            const btn = document.getElementById('backtest-btn');
+            const resultDiv = document.getElementById('backtest-result');
+            
+            // 입력값 검증
+            if (!ticker || !startDate || !endDate) {
+                alert('모든 필드를 입력해주세요.');
+                return;
+            }
+            
+            // 버튼 비활성화 및 로딩 표시
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+            resultDiv.innerHTML = '<p>백테스트 실행 중...</p>';
+            
+            try {
+                const response = await fetch('/api/backtest', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ticker: ticker,
+                        start_date: startDate,
+                        end_date: endDate
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // 성공 결과 표시
+                    resultDiv.innerHTML = `
+                        <div style="background: #d4edda; padding: 15px; border-radius: 5px; color: #155724;">
+                            <h3>백테스트 결과</h3>
+                            <p><strong>종목:</strong> ${data.ticker}</p>
+                            <p><strong>기간:</strong> ${data.start_date} ~ ${data.end_date}</p>
+                            <p><strong>총 거래일:</strong> ${data.total_days}일</p>
+                            <p><strong>시작가:</strong> ${data.start_price.toLocaleString()}원</p>
+                            <p><strong>종료가:</strong> ${data.end_price.toLocaleString()}원</p>
+                            <p><strong>수익률:</strong> ${data.return_rate.toFixed(2)}%</p>
+                            <p><strong>상태:</strong> ${data.status}</p>
+                        </div>
+                    `;
+                } else {
+                    // 오류 결과 표시
+                    resultDiv.innerHTML = `
+                        <div style="background: #f8d7da; padding: 15px; border-radius: 5px; color: #721c24;">
+                            <h3>오류</h3>
+                            <p>${data.error}</p>
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div style="background: #f8d7da; padding: 15px; border-radius: 5px; color: #721c24;">
+                        <h3>네트워크 오류</h3>
+                        <p>서버와 연결할 수 없습니다: ${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                // 버튼 활성화
+                btn.disabled = false;
+                btn.textContent = 'Backtest Execute';
+            }
+        }
+    </script>
 </body>
 </html>
