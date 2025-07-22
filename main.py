@@ -2,8 +2,7 @@ import multiprocessing
 import time
 import logging
 
-from module import visualizer
-from module import trader
+from core import visualizer, trader
 
 # INVEST_TYPE = "PROD"  # 실전투자
 INVEST_TYPE = "VPS"    # 모의투자
