@@ -6,9 +6,12 @@ from flask import Flask, render_template, jsonify, request
 import os
 import json
 import logging
+import importlib
+import sys
 from datetime import datetime
 
 from module import stock_data_manager
+from core import trader
 
 # Flask 앱 초기화
 app = Flask(__name__, 
@@ -102,6 +105,11 @@ def run_backtest():
     print("Received backtest request")
 
     try:
+        # 개발 모드에서 trader 모듈 리로드
+        # -> 테스트 하기 위해 호출 시 마다 trader를 새로 불러옴
+        if 'core.trader' in sys.modules:
+            importlib.reload(sys.modules['core.trader'])
+        
         # JSON 데이터 받기
         data = request.get_json()
         print(f"Backtest data: {data}")
@@ -111,40 +119,40 @@ def run_backtest():
         
         logger.info(f"Starting backtest for {ticker} from {start_date} to {end_date}")
         
-        # 실제 백테스트 로직 (여기서는 간단한 예시)
-        stock_data = stock_data_manager.get_processed_data_D(
-            itm_no=ticker,
-            start_date=start_date,
-            end_date=end_date
-        )
-        
-        if stock_data.empty:
-            return jsonify({'error': f'데이터를 찾을 수 없습니다: {ticker}'}), 404
-        
-        # 간단한 백테스트 결과 생성
-        result = {
-            'ticker': ticker,
-            'start_date': start_date,
-            'end_date': end_date,
-            'total_days': len(stock_data),
-            'start_price': float(stock_data.iloc[0]['close']) if len(stock_data) > 0 else 0,
-            'end_price': float(stock_data.iloc[-1]['close']) if len(stock_data) > 0 else 0,
-            'return_rate': 0,
-            'max_drawdown': 0,
-            'win_rate': 0,
-            'status': 'completed'
-        }
-        
-        # 수익률 계산
-        if result['start_price'] > 0:
-            result['return_rate'] = ((result['end_price'] - result['start_price']) / result['start_price']) * 100
-        
-        logger.info(f"Backtest completed: {result['return_rate']:.2f}% return")
-        
-        return jsonify(result)
-        
+        # 리로드된 모듈에서 trader 인스턴스 생성
+        from core import trader
+        trader_instance = trader.Trader()
+        result = trader_instance.run_backtest(ticker=ticker, start_date=start_date, end_date=end_date)
+
+        return jsonify({
+            'status': 'success',
+            'result': result
+        })
+
     except Exception as e:
         logger.error(f"Backtest API error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/dev/reload', methods=['POST'])
+def reload_modules():
+    """개발용: 모듈 리로드 API"""
+    try:
+        modules_to_reload = ['core.trader', 'module.stock_data_manager']
+        reloaded = []
+        
+        for module_name in modules_to_reload:
+            if module_name in sys.modules:
+                importlib.reload(sys.modules[module_name])
+                reloaded.append(module_name)
+        
+        return jsonify({
+            'status': 'success',
+            'reloaded_modules': reloaded,
+            'message': '모듈이 리로드되었습니다.'
+        })
+        
+    except Exception as e:
+        logger.error(f"Module reload error: {e}")
         return jsonify({'error': str(e)}), 500
 
 def run_server():
