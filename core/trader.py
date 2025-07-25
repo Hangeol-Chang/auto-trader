@@ -27,6 +27,12 @@ class Trader:
         print("\n============= Backtest Start =============")
         print(f"Running backtest for {ticker} from {start_date} to {end_date}...")
 
+        # ticker의 
+
+        # start_date부터 end_date까지를 
+        stock_data_manager.
+
+
 
         print("============= Backtest End =============\n")
         pass
