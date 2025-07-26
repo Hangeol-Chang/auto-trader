@@ -22,7 +22,8 @@ html, body {
 #body {
     background-color: #000000;
     color: white;
-    height: 100vh;
+    height: auto;
+    min-height: 100vh;
     z-index: 1;
 }
 

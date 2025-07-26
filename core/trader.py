@@ -14,22 +14,41 @@ import json
 import pandas as pd
 from datetime import datetime, timedelta
 from module import stock_data_manager
-from strategy import bollinger_band_strategy
+from strategy import macd_strategy
 
 STATE_DATA_DIR = "data/state"
 
 logger = logging.getLogger(__name__)
 
+
+STRATEGIES = {
+    "MACD": macd_strategy.MACD_strategy,
+    # 다른 전략들을 여기에 추가할 수 있습니다.
+}
+
 class Trader:
-    
+    '''
+        호출 순서 : 
+            1. set_strategy() 
+            2. set_data() 
+            3. run_backtest() or run_trader()
+    '''
+
+
     def __init__(self, type=""):
         self.type = type
-        pass
+        self.strategy = None
 
-    def run_backtest(self, ticker, start_date, end_date):
-        print("\n============= Backtest Start =============")
-        print(f"Running backtest for {ticker} from {start_date} to {end_date}...")
+    def set_strategy(self, strategy_name):
+        """전략 설정"""
+        if strategy_name in STRATEGIES:
+            self.strategy = STRATEGIES[strategy_name]()
+            logger.info(f"Strategy set to {strategy_name}")
+        else:
+            raise ValueError(f"Unknown strategy: {strategy_name}")
 
+
+    def set_data(self, ticker, start_date, end_date):
         start_date = stock_data_manager.get_offset_date(start_date, -60)  # 60일 전부터 데이터를 가져오기
 
         # start_date부터 end_date까지를
@@ -38,16 +57,20 @@ class Trader:
             itm_no=ticker,  # 삼성전자
             start_date=start_date, end_date=end_date
         )
+        data = self.strategy.set_data(ticker, dataFrame)
+        return data
 
-        strategy = bollinger_band_strategy.Strategy_BollingerBand()
-        strategy.set_data(ticker, dataFrame)
+    def run_backtest(self, ticker, start_date, end_date):
+        print("\n============= Backtest Start =============")
+        print(f"Running backtest for {ticker} from {start_date} to {end_date}...")
 
-        start_date = stock_data_manager.get_offset_date(start_date, 60)
+        # self.set_data(ticker, start_date, end_date)
+
         now = stock_data_manager.get_next_trading_day(start_date)
 
         trade_info = pd.DataFrame()
         while now <= end_date:
-            res = strategy.run(target_time=now)
+            res = self.strategy.run(target_time=now)
             if res.signal_type != "HOLD":
                 # res.print()
                 trade_info = pd.concat([trade_info, pd.DataFrame([{

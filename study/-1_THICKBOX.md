@@ -8,6 +8,10 @@ investing -> https://kr.investing.com/stock-screener
 - squeeze momentum indicator
 - dual momentum
 
+### 백테스트와 라이브 실행의 해상도 문제에 대해
+- 어쩔 수 없음.
+- 라이브 테스트에서는, 백테스트의 결과를 이용해서 기준값들을 정해놓고, 라이브에서 이 기준값들을 이용하는 형태로 활용.
+
 ### 백테스트
 - 백테스트에도 사용할 수 있고, 실제 거래에도 사용할 수 있는 좋은 구조는 무엇인가.
 - trader -> backtest인지 real인지 구분할 것.

@@ -99,7 +99,50 @@ def get_system_status():
         logger.error(f"System status API error: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/backtest', methods=['POST'])
+
+######################################################################
+############### 백테스트 API ##########################################
+######################################################################
+global backtest_trader
+
+@app.route('/api/backtest/set_strategy', methods=['POST'])
+def set_backtest_strategy():
+    """백테스트 전략 설정 API"""
+    print("Received set strategy request")
+    try:
+        data = request.get_json()
+        strategy_name = data.get('strategy', 'MACD')
+        global backtest_trader
+        backtest_trader = trader.Trader()
+        backtest_trader.set_strategy(strategy_name)
+        return jsonify({'status': 'success', 'message': f'Strategy set to {strategy_name}'})
+    
+    except Exception as e:
+        logger.error(f"Set strategy API error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/backtest/set_data', methods=['POST'])
+def set_backtest_data():
+    """백테스트 데이터 설정 API"""
+    print("Received set data request")
+    try:
+        data = request.get_json()
+        ticker = data.get('ticker', '005930')
+        start_date = data.get('start_date', '20240101')
+        end_date = data.get('end_date', '20241231')
+        
+        global backtest_trader
+        if backtest_trader is None:
+            raise ValueError("Backtest trader is not initialized. Please set the strategy first.")
+        
+        res = backtest_trader.set_data(ticker, start_date, end_date)
+        return jsonify({'status': 'success', 'data': res.to_dict('records')})
+
+    except Exception as e:
+        logger.error(f"Set data API error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/backtest/run', methods=['POST'])
 def run_backtest():
     """백테스트 실행 API"""
     print("Received backtest request")
@@ -115,8 +158,10 @@ def run_backtest():
         logger.info(f"Starting backtest for {ticker} from {start_date} to {end_date}")
         
         # 리로드된 모듈에서 trader 인스턴스 생성
-        trader_instance = trader.Trader()
-        result = trader_instance.run_backtest(ticker=ticker, start_date=start_date, end_date=end_date)
+        global backtest_trader
+        if backtest_trader is None:
+            raise ValueError("Backtest trader is not initialized. Please set the strategy first.")
+        result = backtest_trader.run_backtest(ticker=ticker, start_date=start_date, end_date=end_date)
 
         return jsonify({
             'status': 'success',
