@@ -105,11 +105,6 @@ def run_backtest():
     print("Received backtest request")
 
     try:
-        # 개발 모드에서 trader 모듈 리로드
-        # -> 테스트 하기 위해 호출 시 마다 trader를 새로 불러옴
-        if 'core.trader' in sys.modules:
-            importlib.reload(sys.modules['core.trader'])
-        
         # JSON 데이터 받기
         data = request.get_json()
         print(f"Backtest data: {data}")
@@ -120,7 +115,6 @@ def run_backtest():
         logger.info(f"Starting backtest for {ticker} from {start_date} to {end_date}")
         
         # 리로드된 모듈에서 trader 인스턴스 생성
-        from core import trader
         trader_instance = trader.Trader()
         result = trader_instance.run_backtest(ticker=ticker, start_date=start_date, end_date=end_date)
 

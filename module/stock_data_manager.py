@@ -113,14 +113,14 @@ def split_dates_by_days(start_date: int, end_date: int, days=100) -> list:
 
 def get_next_trading_day(base_date) -> str:
     """
-    다음 거래일을 반환합니다.
-    
+        다음 거래일을 반환합니다.
     Args:
         base_date: 기준일 (str "YYYYMMDD" 형식 또는 int YYYYMMDD)
         
     Returns:
         str: "YYYYMMDD" 형식의 다음 거래일
     """
+
     # 입력값을 문자열로 변환
     if isinstance(base_date, int):
         base_date_str = str(base_date)
@@ -134,11 +134,9 @@ def get_next_trading_day(base_date) -> str:
     base_date = datetime.strptime(base_date_str, "%Y%m%d")
     year = base_date.year
 
-    print(base_date)
-
     while True:
         trading_days = get_trading_days(str(year))
-        future_days = [d for d in trading_days if d > base_date]
+        future_days = [d for d in trading_days if d >= base_date]
         if future_days:
             return future_days[0].strftime("%Y%m%d")
     
@@ -175,7 +173,7 @@ def get_previous_trading_day(base_date) -> str:
 
     while True:
         trading_days = get_trading_days(str(year))
-        past_days = [d for d in trading_days if d < base_date]
+        past_days = [d for d in trading_days if d <= base_date]
         if past_days:
             return past_days[-1].strftime("%Y%m%d")
         year -= 1
@@ -468,6 +466,8 @@ def get_itempricechart_2(
                 "FID_PERIOD_DIV_CODE": period_code, # 기간분류코드 D:일봉, W:주봉, M:월봉, Y:년봉
                 "FID_ORG_ADJ_PRC": adj_prc          # 수정주가 0:수정주가 1:원주가
             }
+
+            print(params) 
     
             print("API에서 새로운 데이터를 가져옵니다...")
             res = kis_fetcher._url_fetch(url, tr_id, tr_cont, params)
@@ -505,6 +505,17 @@ def get_itempricechart_2(
             (result_data['date'] >= start_dt) & 
             (result_data['date'] <= end_dt)
         ].copy()
+        
+        # 날짜를 YYYYMMDD 형식으로 변환
+        result_data['date'] = result_data['date'].dt.strftime('%Y%m%d')  # 날짜를 YYYYMMDD 형식으로 변환
+
+        # 모든 열을 값을 보고 적절한 형으로 변환
+        for col in result_data.columns:
+            if col == 'date':
+                continue
+            if result_data[col].dtype == 'object':
+                # 숫자형으로 변환 (오류가 나면 NaN 처리)
+                result_data[col] = pd.to_numeric(result_data[col], errors='coerce')
 
     except Exception as e:
         print(f"데이터 필터링 중 오류: {e}")
@@ -518,7 +529,6 @@ def get_full_ticker(include_screening_data=True):
     
     Args:
         include_screening_data (bool): 스크리닝 데이터 포함 여부
-    
     Returns:
         pd.DataFrame: ticker 정보가 담긴 DataFrame
     """
