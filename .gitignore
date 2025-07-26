@@ -16,3 +16,4 @@ private/
 guide/
 sample/
 data/**/*.csv
+data/**/*.json
