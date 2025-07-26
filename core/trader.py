@@ -58,7 +58,7 @@ class Trader:
             start_date=start_date, end_date=end_date
         )
         data = self.strategy.set_data(ticker, dataFrame)
-        return data
+        return data.to_json(orient='records')
 
     def run_backtest(self, ticker, start_date, end_date):
         print("\n============= Backtest Start =============")

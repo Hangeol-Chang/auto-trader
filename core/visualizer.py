@@ -136,7 +136,7 @@ def set_backtest_data():
             raise ValueError("Backtest trader is not initialized. Please set the strategy first.")
         
         res = backtest_trader.set_data(ticker, start_date, end_date)
-        return jsonify({'status': 'success', 'data': res.to_dict('records')})
+        return jsonify({'status': 'success', 'result': res})
 
     except Exception as e:
         logger.error(f"Set data API error: {e}")

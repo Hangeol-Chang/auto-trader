@@ -46,8 +46,14 @@ async function executeBacktest() {
             throw new Error(errorData.error || '데이터 설정 중 오류 발생');
         }
 
-        console.log('백테스트 데이터 설정 완료:', ticker, startDate, endDate);
-        console.log(res2);
+        let chartData = await res2.json();
+        
+        // 주가 데이터 파싱 및 초기 차트 그리기 (신호 없이)
+        if (chartData.status === 'success' && chartData.result) {
+            const stockData = JSON.parse(chartData.result);
+            drawStockChart(stockData, ticker);
+        }
+
 
         const response = await fetch('/api/backtest/run', {
             method: 'POST',
@@ -70,6 +76,12 @@ async function executeBacktest() {
                 const tradingSignals = data.filter(item => 
                     item.signal_type.value === 'BUY' || item.signal_type.value === 'SELL'
                 );
+                
+                // 차트에 매매 신호 추가
+                if (chartData.status === 'success' && chartData.result) {
+                    const stockData = JSON.parse(chartData.result);
+                    drawStockChart(stockData, ticker, tradingSignals);
+                }
                 
                 if (tradingSignals.length > 0) {
                     let tableHtml = `
@@ -142,5 +154,176 @@ async function executeBacktest() {
         // 버튼 활성화
         btn.disabled = false;
         btn.textContent = 'Backtest Execute';
+    }
+}
+
+// 주가 차트 그리기 함수
+function drawStockChart(stockData, ticker, tradingSignals = []) {
+    try {
+        
+        if (!stockData || !Array.isArray(stockData) || stockData.length === 0) {
+            document.getElementById('stock-chart').innerHTML = '<p>차트 데이터가 없습니다.</p>';
+            return;
+        }
+
+        // 데이터 변환
+        const dates = stockData.map(item => item.date);
+        const opens = stockData.map(item => item.open);
+        const highs = stockData.map(item => item.high);
+        const lows = stockData.map(item => item.low);
+        const closes = stockData.map(item => item.close);
+        const volumes = stockData.map(item => item.volume);
+
+        // MA 데이터 (있는 경우)
+        const ma5 = stockData.map(item => item.MA5 || null);
+        const ma20 = stockData.map(item => item.MA20 || null);
+        const ma60 = stockData.map(item => item.MA60 || null);
+
+        // 캔들스틱 차트 데이터
+        const candlestick = {
+            x: dates,
+            open: opens,
+            high: highs,
+            low: lows,
+            close: closes,
+            type: 'candlestick',
+            name: ticker,
+            increasing: { line: { color: '#ff4444' } },
+            decreasing: { line: { color: '#4444ff' } }
+        };
+
+        // 이동평균선 데이터
+        const traces = [candlestick];
+
+        if (ma5.some(v => v !== null)) {
+            traces.push({
+                x: dates,
+                y: ma5,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'MA5',
+                line: { color: '#ffaa00', width: 1 }
+            });
+        }
+
+        if (ma20.some(v => v !== null)) {
+            traces.push({
+                x: dates,
+                y: ma20,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'MA20',
+                line: { color: '#00aa00', width: 2 }
+            });
+        }
+
+        if (ma60.some(v => v !== null)) {
+            traces.push({
+                x: dates,
+                y: ma60,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'MA60',
+                line: { color: '#aa00aa', width: 2 }
+            });
+        }
+
+        // 매매 신호 추가
+        if (tradingSignals && tradingSignals.length > 0) {
+            // 매수 신호 (초록색 삼각형)
+            const buySignals = tradingSignals.filter(signal => signal.signal_type.value === 'BUY');
+            if (buySignals.length > 0) {
+                // YYYYMMDD 형태를 YYYY-MM-DD 형태로 변환
+                const buyDates = buySignals.map(signal => {
+                    const dateStr = signal.target_time;
+                    return `${dateStr.slice(0,4)}-${dateStr.slice(4,6)}-${dateStr.slice(6,8)}`;
+                });
+                const buyPrices = buySignals.map(signal => signal.current_price);
+                
+                traces.push({
+                    x: buyDates,
+                    y: buyPrices,
+                    type: 'scatter',
+                    mode: 'markers',
+                    name: '매수 신호',
+                    marker: {
+                        symbol: 'triangle-up',
+                        size: 12,
+                        color: '#00ff00',
+                        line: { color: '#008800', width: 2 }
+                    },
+                    hovertemplate: '<b>매수 신호</b><br>' +
+                                   '날짜: %{x}<br>' +
+                                   '가격: %{y:,.0f}원<br>' +
+                                   '<extra></extra>'
+                });
+            }
+
+            // 매도 신호 (노란색 역삼각형)
+            const sellSignals = tradingSignals.filter(signal => signal.signal_type.value === 'SELL');
+            if (sellSignals.length > 0) {
+                // YYYYMMDD 형태를 YYYY-MM-DD 형태로 변환
+                const sellDates = sellSignals.map(signal => {
+                    const dateStr = signal.target_time;
+                    return `${dateStr.slice(0,4)}-${dateStr.slice(4,6)}-${dateStr.slice(6,8)}`;
+                });
+                const sellPrices = sellSignals.map(signal => signal.current_price);
+                
+                traces.push({
+                    x: sellDates,
+                    y: sellPrices,
+                    type: 'scatter',
+                    mode: 'markers',
+                    name: '매도 신호',
+                    marker: {
+                        symbol: 'triangle-down',
+                        size: 12,
+                        color: '#ffff00',
+                        line: { color: '#cc8800', width: 2 }
+                    },
+                    hovertemplate: '<b>매도 신호</b><br>' +
+                                   '날짜: %{x}<br>' +
+                                   '가격: %{y:,.0f}원<br>' +
+                                   '<extra></extra>'
+                });
+            }
+        }
+
+        // 레이아웃 설정
+        const layout = {
+            title: `${ticker} 주가 차트`,
+            xaxis: {
+                title: '날짜',
+                type: 'date',
+                rangeslider: { visible: false }
+            },
+            yaxis: {
+                title: '가격 (원)',
+                autorange: true
+            },
+            plot_bgcolor: '#f8f9fa',
+            paper_bgcolor: '#ffffff',
+            font: { family: 'Arial, sans-serif' },
+            margin: { l: 50, r: 50, t: 50, b: 50 },
+            showlegend: true,
+            legend: {
+                x: 0,
+                y: 1,
+                bgcolor: 'rgba(255,255,255,0.8)',
+                bordercolor: 'rgba(0,0,0,0.2)',
+                borderwidth: 1
+            }
+        };
+
+        // 차트 그리기
+        Plotly.newPlot('stock-chart', traces, layout, {
+            responsive: true,
+            displayModeBar: true,
+            modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d']
+        });
+        
+    } catch (error) {
+        console.error('Chart drawing error:', error);
+        document.getElementById('stock-chart').innerHTML = `<p>차트 그리기 오류: ${error.message}</p>`;
     }
 }
