@@ -1,0 +1,38 @@
+/* styles.css */
+
+html, body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+}
+
+#header {
+    display: flex;  
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    background-color: #111;
+    color: white;
+    margin: 0;
+    box-shadow: 0 2px 3px rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid #444;
+    z-index: 10;
+}
+
+#body {
+    background-color: #000000;
+    color: white;
+    height: auto;
+    min-height: 100vh;
+    z-index: 1;
+}
+
+nav {
+    display: flex;
+    gap: 20px;
+}
+
+h1, h2 {
+    font-size: 24px;
+    margin: 0;
+}

@@ -1,0 +1,19 @@
+dist/
+build/
+*.log
+*.env
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+
+*.yaml
+*.yml
+.venv/
+
+private/
+guide/
+sample/
+data/**/*.csv
+data/**/*.json
