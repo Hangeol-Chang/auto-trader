@@ -24,10 +24,20 @@ app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
 logger = logging.getLogger(__name__)
 
+
+######################################################################
+############### 라우터 API ############################################
+######################################################################
+
 @app.route('/')
 def index():
     """메인 페이지"""
     return render_template('index.html')
+
+
+######################################################################
+############### stock/ticker API #####################################
+######################################################################
 
 @app.route('/api/stock/data')
 def get_stock_data():
@@ -61,9 +71,10 @@ def get_stock_data():
         logger.error(f"Stock data API error: {e}")
         return jsonify({'error': str(e)}), 500
 
+
+"""전체 티커 목록 API"""
 @app.route('/api/stock/tickers')
 def get_tickers():
-    """전체 티커 목록 API"""
     try:
         tickers = stock_data_manager.get_full_ticker(include_screening_data=False)
         
@@ -73,7 +84,7 @@ def get_tickers():
         # 상위 100개만 반환 (성능상 이유)
         result = {
             'total_count': len(tickers),
-            'data': tickers.head(100).to_dict('records')
+            'data': tickers.to_dict('records')
         }
         
         return jsonify(result)
@@ -81,6 +92,7 @@ def get_tickers():
     except Exception as e:
         logger.error(f"Tickers API error: {e}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/system/status')
 def get_system_status():

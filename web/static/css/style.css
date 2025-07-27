@@ -37,3 +37,19 @@ h1, h2 {
     font-size: 24px;
     margin: 0;
 }
+
+p {
+    margin: 0px;
+}
+
+#ticker-result {
+    margin-top: 10px;
+    
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    
+    max-height: 100px;
+    overflow-y: auto;
+    background-color: #333;
+}

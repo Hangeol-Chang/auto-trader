@@ -20,6 +20,23 @@
     <div id="body">
         <div class="unit">
             <h2>
+                Stock Unit
+            </h2>
+            <label for="ticker-searchType">Type</label>
+            <select id="ticker-searchType">
+                <option value="name">Name</option>
+                <option value="ticker">Ticker</option>
+            </select>
+            <br>
+            <label for="ticker-input">Ticker:</label>
+            <input type="text" id="ticker-input" placeholder="Ticker (예: 005930)" value="NAVER">
+            <button id="ticker-btn" onclick="findTicker()">Find Ticker</button>
+
+            <div id="ticker-result"></div>
+
+            <hr>
+
+            <h2>
                 BackTest Unit
             </h2>
             
@@ -53,5 +70,6 @@
     </div>
 
     <script src="{{ url_for('static', filename='./js/backtest.js') }}"></script>
+    <script src="{{ url_for('static', filename='./js/stock.js') }}"></script>
 </body>
 </html>

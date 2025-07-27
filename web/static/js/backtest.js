@@ -275,6 +275,7 @@ function generateLayout(config, baseLayout, ticker, dates) {
     const dateValues = [];
     const step = Math.max(1, Math.floor(dates.length / 10)); // 최대 10개 라벨
 
+    currentChartDates = [];
     for (let i = 0; i < dates.length; i += 1) {
         // int 형태의 utc timestamp를 YYYY-MM-DD 형식으로 변환
         const date = new Date(dates[i]);
@@ -282,11 +283,11 @@ function generateLayout(config, baseLayout, ticker, dates) {
         const formatted = `${pad(date.getFullYear() % 100)}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 
         currentChartDates.push(formatted);
-        if( i % step === 0 || i === dates.length - 1) // 마지막 날짜는 무조건 추가
+        if( i % step === 0) {
             dateValues.push(i);
             dateLabels.push(formatted);
+        }
     }
-    console.log(dateLabels);
     
     // 각 subplot에 대한 axis 설정 생성
     config.subplots.forEach((subplot, index) => {
@@ -761,7 +762,7 @@ function addNewSubplot(chartId, subplotConfig) {
 // 차트에 추가 데이터 업데이트 함수 (신호, 지표 등)
 function updateStockChart(tradingSignals = []) {
     try {
-        console.log('updateStockChart 호출됨, 매매 신호:', tradingSignals);
+        // console.log('updateStockChart 호출됨, 매매 신호:', tradingSignals);
         
         if (!tradingSignals || !Array.isArray(tradingSignals) || tradingSignals.length === 0) {
             console.log('매매 신호 데이터가 없습니다.');
@@ -780,13 +781,12 @@ function updateStockChart(tradingSignals = []) {
             const formatted = `${year}-${month}-${day}`;
 
             const index = currentChartDates.findIndex(d => d === formatted);
-            console.log(`날짜 ${dateStr} -> ${formatted}의 인덱스: ${index}`);
             return index !== -1 ? index : null;
         }
 
         // 매매 신호 추가
-        console.log('매매 신호 처리 중:', tradingSignals);
-        console.log('현재 차트 날짜:', currentChartDates);
+        // console.log('매매 신호 처리 중:', tradingSignals);
+        // console.log('현재 차트 날짜:', currentChartDates);
         
         // 매수 신호
         const buySignals = tradingSignals.filter(signal => signal.signal_type.value === 'BUY');
@@ -804,8 +804,8 @@ function updateStockChart(tradingSignals = []) {
                 }
             });
             
-            console.log('매수 신호 인덱스:', buyIndices);
-            console.log('매수 신호 가격:', buyPrices);
+            // console.log('매수 신호 인덱스:', buyIndices);
+            // console.log('매수 신호 가격:', buyPrices);
             
             if (buyIndices.length > 0) {
                 // 주가 차트에 매수 신호 추가
@@ -871,9 +871,8 @@ function updateStockChart(tradingSignals = []) {
                     sellDates.push(`${signal.target_time.slice(0,4)}-${signal.target_time.slice(4,6)}-${signal.target_time.slice(6,8)}`);
                 }
             });
-            
-            console.log('매도 신호 인덱스:', sellIndices);
-            console.log('매도 신호 가격:', sellPrices);
+            // console.log('매도 신호 인덱스:', sellIndices);
+            // console.log('매도 신호 가격:', sellPrices);
             
             if (sellIndices.length > 0) {
                 // 주가 차트에 매도 신호 추가
