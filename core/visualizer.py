@@ -111,6 +111,7 @@ def set_backtest_strategy():
     print("Received set strategy request")
     try:
         data = request.get_json()
+        # strategy_name = data.get('strategy', 'MACD')
         strategy_name = data.get('strategy', 'MACD')
         global backtest_trader
         backtest_trader = trader.Trader()

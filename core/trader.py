@@ -3,18 +3,17 @@
     자동 트레이딩 모듈
 
     부착될 모듈들
-    - 매수, 매매 타이밍을 잡아오는 모듈
-    - \
+    - strategy : 매수, 매매 타이밍을 잡아오는 모듈
+    - orderer : 실제 주문을 실행하는 모듈.
 """
 
-import os
-import time
 import logging
-import json
 import pandas as pd
-from datetime import datetime, timedelta
 from module import stock_data_manager
-from strategy import macd_strategy
+from module import stock_orderer
+from strategy import            \
+    macd_strategy,              \
+    squeeze_momentum_strategy
 
 STATE_DATA_DIR = "data/state"
 
@@ -22,7 +21,8 @@ logger = logging.getLogger(__name__)
 
 
 STRATEGIES = {
-    "MACD": macd_strategy.MACD_strategy,
+    "MACD":             macd_strategy.MACD_strategy,
+    "SqueezeMomentum":  squeeze_momentum_strategy.SqueezeMomentum_strategy,
     # 다른 전략들을 여기에 추가할 수 있습니다.
 }
 
@@ -33,8 +33,6 @@ class Trader:
             2. set_data() 
             3. run_backtest() or run_trader()
     '''
-
-
     def __init__(self, type=""):
         self.type = type
         self.strategy = None
@@ -43,6 +41,7 @@ class Trader:
         """전략 설정"""
         if strategy_name in STRATEGIES:
             self.strategy = STRATEGIES[strategy_name]()
+            print(f"Strategy set to {strategy_name} || {self.strategy.name}")
             logger.info(f"Strategy set to {strategy_name}")
         else:
             raise ValueError(f"Unknown strategy: {strategy_name}")
@@ -87,7 +86,7 @@ class Trader:
             now = stock_data_manager.get_offset_date(now, 1)  # 다음 거래일로 이동
             now = stock_data_manager.get_next_trading_day(now)
 
-        # print(trade_info)
+        print(trade_info)
         print("============= Backtest End =============\n")
         return trade_info.to_json(orient='records')
 
