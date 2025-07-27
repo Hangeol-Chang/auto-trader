@@ -73,33 +73,31 @@ class Trader:
 
         now = stock_data_manager.get_next_trading_day(start_date)
 
-        trade_info = pd.DataFrame()
+        # trade_info = pd.DataFrame()
         while now <= end_date:
             res = self.strategy.run(target_time=now)
-            if res.signal_type != SignalType.HOLD:
-                # res.print()
-                trade_info = pd.concat([trade_info, pd.DataFrame([{
-                    'timestamp': res.timestamp,
-                    'signal_type': res.signal_type,
-                    'target_time': res.target_time,
-                    'ticker': res.ticker,
-                    'position_size': res.position_size,
-                    'current_price': res.current_price,
-                    'quantity': res.quantity
-                }])], ignore_index=True)
+            # res.print()
+            # trade_info = pd.concat([trade_info, pd.DataFrame([{
+            #     'timestamp': res.timestamp,
+            #     'signal_type': res.signal_type,
+            #     'target_time': res.target_time,
+            #     'ticker': res.ticker,
+            #     'position_size': res.position_size,
+            #     'current_price': res.current_price,
+            #     'quantity': res.quantity
+            # }])], ignore_index=True)
 
-                # 거래를 수행.
-                self.orderer.place_order(order_info=res)
-
+            # 거래를 수행.
+            self.orderer.place_order(order_info=res)
             # 신호에 따라 매매 로직 수행
             now = stock_data_manager.get_offset_date(now, 1)  # 다음 거래일로 이동
             now = stock_data_manager.get_next_trading_day(now)
 
-        print(trade_info)
+        # print(trade_info)
         trade_result = self.orderer.end_test()
 
         print("============= Backtest End =============\n")
-        return trade_info.to_json(orient='records')
+        return trade_result
 
     def run_trader(self):
         print("Running trader...")

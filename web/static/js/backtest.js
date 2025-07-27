@@ -70,15 +70,22 @@ async function executeBacktest() {
         });
 
         let data = await response.json();
-        data = JSON.parse(data.result);
+        data = data.result;
+        // console.log(data)
+        // data = JSON.parse(data.result);
         
-        console.log('백테스트 결과:', data);
+        console.log('backtest trading result:', data);
+
+        const balance = data.balance;
+        const portfolioValue = data.portfolioValue;
+        const trade_history = data.trade_history;
 
         if (response.ok) {
-            if (data && Array.isArray(data) && data.length > 0) {
+            if (trade_history && Array.isArray(trade_history) && trade_history.length > 0) {
+                
                 // BUY와 SELL 신호만 필터링 (HOLD 제외)
-                const tradingSignals = data.filter(item => 
-                    item.signal_type.value === 'BUY' || item.signal_type.value === 'SELL'
+                const tradingSignals = trade_history.filter(item => 
+                    item.signal_type === 'BUY' || item.signal_type === 'SELL'
                 );
                 
                 // 차트에 매매 신호 추가
@@ -87,7 +94,10 @@ async function executeBacktest() {
                 }
                 
                 // 백테스트 결과 테이블 생성
-                displayBacktestResults(tradingSignals);
+                displayBacktestResults(tradingSignals, {
+                    "balance": balance,
+                    "portfolioValue": portfolioValue
+                });
             } else {
                 resultDiv.innerHTML = '<p>백테스트 결과가 없습니다.</p>';
             }
@@ -116,7 +126,7 @@ async function executeBacktest() {
 }
 
 // 백테스트 결과 테이블 생성 함수
-function displayBacktestResults(tradingSignals) {
+function displayBacktestResults(tradingSignals, { balance, portfolioValue }) {
     const resultDiv = document.getElementById('backtest-result');
     
     if (!tradingSignals || tradingSignals.length === 0) {
@@ -125,8 +135,8 @@ function displayBacktestResults(tradingSignals) {
     }
 
     // 통계 계산
-    const buyCount = tradingSignals.filter(item => item.signal_type.value === 'BUY').length;
-    const sellCount = tradingSignals.filter(item => item.signal_type.value === 'SELL').length;
+    const buyCount = tradingSignals.filter(item => item.signal_type === 'BUY').length;
+    const sellCount = tradingSignals.filter(item => item.signal_type === 'SELL').length;
     
     // 헤더와 통계 부분
     let htmlContent = `
@@ -135,6 +145,9 @@ function displayBacktestResults(tradingSignals) {
             <div style="padding: 10px; background-color: #333333; border-radius: 5px; margin-bottom: 15px;">
                 <h4 style="margin: 0 0 10px 0;">거래 요약</h4>
                 <p style="margin: 0;">📈 매수 신호: ${buyCount}개 | 📉 매도 신호: ${sellCount}개</p>
+                <br>
+                <p style="margin: 0;">💰 최종 잔액: ${balance.toLocaleString()}원</p>
+                <p style="margin: 0;">📊 포트폴리오 가치: ${portfolioValue.toLocaleString()}원</p>
             </div>
         </div>
     `;
@@ -163,15 +176,15 @@ function displayBacktestResults(tradingSignals) {
     
     // 테이블 로우 생성
     tradingSignals.forEach((item, index) => {
-        const signalColor = item.signal_type.value === 'BUY' ? '#28a745' : '#dc3545';
-        const signalIcon = item.signal_type.value === 'BUY' ? '📈' : '📉';
+        const signalColor = item.signal_type === 'BUY' ? '#28a745' : '#dc3545';
+        const signalIcon = item.signal_type === 'BUY' ? '📈' : '📉';
         const rowBgColor = index % 2 === 0 ? '#2a2a2a' : '#1a1a1a';
         
         htmlContent += `
             <tr style="background-color: ${rowBgColor}; border-bottom: 1px solid #444;">
                 <td style="padding: 10px; width: 20%; border-right: 1px solid #444; color: #ffffff; font-size: 13px;">${item.target_time}</td>
                 <td style="padding: 10px; text-align: center; width: 15%; border-right: 1px solid #444; color: ${signalColor}; font-weight: bold;">
-                    ${signalIcon} ${item.signal_type.value}
+                    ${signalIcon} ${item.signal_type}
                 </td>
                 <td style="padding: 10px; text-align: center; width: 15%; border-right: 1px solid #444; color: #ffffff; font-size: 13px;">${item.ticker}</td>
                 <td style="padding: 10px; text-align: center; width: 20%; border-right: 1px solid #444; color: #ffffff; font-size: 13px;">${(item.position_size * 100).toFixed(1)}%</td>
@@ -789,7 +802,7 @@ function updateStockChart(tradingSignals = []) {
         // console.log('현재 차트 날짜:', currentChartDates);
         
         // 매수 신호
-        const buySignals = tradingSignals.filter(signal => signal.signal_type.value === 'BUY');
+        const buySignals = tradingSignals.filter(signal => signal.signal_type === 'BUY');
         if (buySignals.length > 0) {
             const buyIndices = [];
             const buyPrices = [];
@@ -857,7 +870,7 @@ function updateStockChart(tradingSignals = []) {
         }
 
         // 매도 신호
-        const sellSignals = tradingSignals.filter(signal => signal.signal_type.value === 'SELL');
+        const sellSignals = tradingSignals.filter(signal => signal.signal_type === 'SELL');
         if (sellSignals.length > 0) {
             const sellIndices = [];
             const sellPrices = [];

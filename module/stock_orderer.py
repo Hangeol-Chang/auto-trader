@@ -69,7 +69,7 @@ class BackTest_Orderer(Orderer):
         - 백테스트 결과를 저장하고 상태를 초기화합니다.
         """
         print("Ending backtest and saving state...")
-        self.save_state(self.state)
+        return self.save_state(self.state)
 
     def save_state(self, state):
         """
@@ -91,7 +91,8 @@ class BackTest_Orderer(Orderer):
         with open(filepath, 'w') as f:
             json.dump(state, f, indent=4)
         print(f"State saved to {filepath}")
-        
+
+        return self.state
 
     def load_state(self):
         # 초기 자본금, 보유 종목, 거래 기록 등을 로드합니다.
@@ -142,7 +143,6 @@ class BackTest_Orderer(Orderer):
         if signal_type not in [SignalType.BUY, SignalType.SELL, SignalType.HOLD]:
             raise ValueError("Invalid signal_type. Must be BUY, SELL, or HOLD.")
         
-        print('start place order', order_info.signal_type)
         # state에 ticker가 있으면 current_price 업데이트
         if ticker in self.state['positions']:
             self.state['positions'][ticker]['current_price'] = current_price
@@ -152,7 +152,7 @@ class BackTest_Orderer(Orderer):
             #     raise ValueError("Quantity must be specified for BUY orders.")
             quantity = int(self.state['balance'] * position_size / current_price) if quantity is None else quantity
 
-            print(f"Placing BUY order for {ticker} at {current_price} with quantity {quantity} on {target_time}.")
+            # print(f"Placing BUY order for {ticker} at {current_price} with quantity {quantity} on {target_time}.")
 
             # 주문 실행 로직 (예: API 호출, 데이터베이스 업데이트 등)
             # 이미 보유하고 있는 종목이면
@@ -186,10 +186,9 @@ class BackTest_Orderer(Orderer):
                 # 팔 게 없을 떄 패스
                 pass
             else:
-                print("asd")
-                print(self.state['positions'][ticker]['quantity'], position_size)
+                # print(self.state['positions'][ticker]['quantity'], position_size)
                 quantity = int(self.state['positions'][ticker]['quantity'] * position_size) if quantity is None else quantity
-                print(f"Placing SELL order for {ticker} at {current_price} with quantity {quantity} on {target_time}.")
+                # print(f"Placing SELL order for {ticker} at {current_price} with quantity {quantity} on {target_time}.")
 
                 # 주문 실행 로직 (예: API 호출, 데이터베이스 업데이트 등)
                 self.state['positions'][ticker]['quantity'] -= quantity
