@@ -29,3 +29,15 @@
     }
 }
 ```
+
+### state_{}.json
+```json
+{
+    "balance": 10000000,
+    "portfolioValue": 10000000,
+    "positions": {},
+    "trade_history": [],
+    "last_update": "2025-07-22T19:50:49.409572",
+    "status": "stopped"
+}
+```

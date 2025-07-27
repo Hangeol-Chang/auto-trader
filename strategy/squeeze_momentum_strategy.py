@@ -72,10 +72,6 @@ class SqueezeMomentum_strategy(STRATEGY):
             (self.dataFrame.loc[valid_data, 'BB_upper'] < self.dataFrame.loc[valid_data, 'KC_upper'])
         )
         
-        # Squeeze Off: Bollinger Bands가 Keltner Channels 밖으로 나갈 때
-        self.dataFrame['squeeze_off'] = False  # 기본값
-        self.dataFrame.loc[valid_data, 'squeeze_off'] = ~self.dataFrame.loc[valid_data, 'squeeze_on']
-        
         # === Momentum 계산 ===
         # Linear regression을 이용한 momentum 계산 (20일 기준)
         momentum_period = 20
@@ -188,7 +184,6 @@ class SqueezeMomentum_strategy(STRATEGY):
         
         # 각종 신호 확인 (NaN 값을 False로 처리)
         squeeze_on = bool(latest['squeeze_on']) if pd.notna(latest['squeeze_on']) else False
-        squeeze_off = bool(latest['squeeze_off']) if pd.notna(latest['squeeze_off']) else False
         squeeze_start = bool(latest['squeeze_start']) if pd.notna(latest['squeeze_start']) else False
         squeeze_end = bool(latest['squeeze_end']) if pd.notna(latest['squeeze_end']) else False
         momentum = latest['momentum'] if pd.notna(latest['momentum']) else 0.0
@@ -209,12 +204,8 @@ class SqueezeMomentum_strategy(STRATEGY):
         # === 매수 신호 점수 계산 ===
         
         # Squeeze 종료 후 상승 momentum (가장 강력한 신호)
-        if squeeze_end and momentum > 0 and momentum_increasing:
+        if squeeze_end and momentum > 0 and momentum_increasing:    # ** 중요
             buy_score += 50
-        
-        # Momentum이 0선을 상향 돌파
-        if momentum_cross_up:
-            buy_score += 30
         
         # Squeeze 중이면서 momentum이 증가하고 있을 때
         if squeeze_on and momentum_increasing and momentum > 0:
@@ -223,14 +214,6 @@ class SqueezeMomentum_strategy(STRATEGY):
         # 상승 추세 중 momentum 증가
         if ma_uptrend and momentum_increasing and momentum > 0:
             buy_score += 20
-        
-        # Bollinger Bands 하단 근처에서 반등 (과매도 반등)
-        if bb_squeeze_ratio < 0.2 and momentum_increasing:
-            buy_score += 15
-        
-        # Squeeze가 시작되었을 때 (변동성 압축 시작)
-        if squeeze_start:
-            buy_score += 10
         
         # === 매도 신호 점수 계산 ===
         
@@ -249,14 +232,6 @@ class SqueezeMomentum_strategy(STRATEGY):
         # 하락 추세 중 momentum 감소
         if ma_downtrend and momentum_decreasing and momentum < 0:
             sell_score += 20
-        
-        # Bollinger Bands 상단 근처에서 하락 (과매수 조정)
-        if bb_squeeze_ratio > 0.8 and momentum_decreasing:
-            sell_score += 15
-        
-        # Squeeze가 시작되었을 때 (변동성 압축 시작)
-        if squeeze_start:
-            sell_score += 10
         
         # === 신호 결정 로직 ===
         if buy_score >= 60:  # 매우 강력한 매수 신호

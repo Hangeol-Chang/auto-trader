@@ -11,6 +11,7 @@ import logging
 import pandas as pd
 from module import stock_data_manager
 from module import stock_orderer
+from strategy.strategy import SignalType
 from strategy import            \
     macd_strategy,              \
     squeeze_momentum_strategy
@@ -36,6 +37,13 @@ class Trader:
     def __init__(self, type=""):
         self.type = type
         self.strategy = None
+        
+        if type == "backtest":
+            self.orderer = stock_orderer.BackTest_Orderer()
+        elif type == "paper":
+            self.orderer = stock_orderer.Paper_Orderer()
+        elif type == "live":
+            self.orderer = stock_orderer.Live_Orderer()
 
     def set_strategy(self, strategy_name):
         """전략 설정"""
@@ -63,14 +71,12 @@ class Trader:
         print("\n============= Backtest Start =============")
         print(f"Running backtest for {ticker} from {start_date} to {end_date}...")
 
-        # self.set_data(ticker, start_date, end_date)
-
         now = stock_data_manager.get_next_trading_day(start_date)
 
         trade_info = pd.DataFrame()
         while now <= end_date:
             res = self.strategy.run(target_time=now)
-            if res.signal_type != "HOLD":
+            if res.signal_type != SignalType.HOLD:
                 # res.print()
                 trade_info = pd.concat([trade_info, pd.DataFrame([{
                     'timestamp': res.timestamp,
@@ -82,11 +88,16 @@ class Trader:
                     'quantity': res.quantity
                 }])], ignore_index=True)
 
+                # 거래를 수행.
+                self.orderer.place_order(order_info=res)
+
             # 신호에 따라 매매 로직 수행
             now = stock_data_manager.get_offset_date(now, 1)  # 다음 거래일로 이동
             now = stock_data_manager.get_next_trading_day(now)
 
         print(trade_info)
+        trade_result = self.orderer.end_test()
+
         print("============= Backtest End =============\n")
         return trade_info.to_json(orient='records')
 

@@ -34,6 +34,10 @@ def index():
     """메인 페이지"""
     return render_template('index.html')
 
+@app.route('/backtest')
+def index_backtest():
+    """백테스트 페이지"""
+    return render_template('./src/backtest.html')
 
 ######################################################################
 ############### stock/ticker API #####################################
@@ -126,7 +130,7 @@ def set_backtest_strategy():
         # strategy_name = data.get('strategy', 'MACD')
         strategy_name = data.get('strategy', 'MACD')
         global backtest_trader
-        backtest_trader = trader.Trader()
+        backtest_trader = trader.Trader("backtest")
         backtest_trader.set_strategy(strategy_name)
         return jsonify({'status': 'success', 'message': f'Strategy set to {strategy_name}'})
     
