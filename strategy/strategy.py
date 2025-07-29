@@ -100,10 +100,30 @@ class STRATEGY:
     def __init__(self):
         pass
 
-    def run(self, dataFrame=None) -> TradingSignal:
+    def set_data(self, ticker, dataFrame=None, state=None):
+        """
+        데이터 설정 메소드
+        :param ticker: 종목 코드
+        :param dataFrame: 데이터프레임 (주가 데이터 등)
+        :param state: 현재 상태 (예: 포트폴리오, 잔고 등)
+        :return: 데이터프레임
+        """
+        raise NotImplementedError("set_data 메소드를 구현해야 합니다.")
+    
+    def get_dataframe(self):
+        """
+        현재 데이터프레임 반환 메소드
+        :return: 현재 데이터프레임
+        """
+        if self.dataFrame is None:
+            raise ValueError("DataFrame is not set. Please set the DataFrame using set_data() method.")
+        return self.dataFrame
+
+    def run(self, target_time=None, state=None) -> TradingSignal:
         """
         전략 실행 메소드
-        :param dataFrame: 데이터프레임 (예: 주가 데이터)
+        :param target_time: 전략을 실행할 날짜 (예: '2023-01-01')
+        :param state: 현재 상태 (예: 포트폴리오, 잔고 등) -> stock_orderer 참고
         :return: TradingSignal 객체
         """
         raise NotImplementedError("run 메소드를 구현해야 합니다.")

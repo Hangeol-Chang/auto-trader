@@ -384,6 +384,14 @@ function drawStockChart(stockData, ticker) {
         const squeezeOn = stockData.map(item => item.squeeze_on || false);
         const hasMomentumData = momentum.some(v => v !== null);
 
+        // RSI 관련 데이터
+        const rsi = stockData.map(item => item.rsi || null);
+        const rsiOversoldEntry = stockData.map(item => item.rsi_oversold_entry || false);
+        const rsiOversoldExit = stockData.map(item => item.rsi_oversold_exit || false);
+        const rsiOverboughtEntry = stockData.map(item => item.rsi_overbought_entry || false);
+        const rsiOverboughtExit = stockData.map(item => item.rsi_overbought_exit || false);
+        const hasRsiData = rsi.some(v => v !== null);
+
         // subplot 설정 시작
         const plotConfig = createSubplotConfig();
 
@@ -399,8 +407,8 @@ function drawStockChart(stockData, ticker) {
             close: closes,
             type: 'candlestick',
             name: ticker,
-            increasing: { line: { color: '#00ff88' } },
-            decreasing: { line: { color: '#ff4444' } }
+            increasing: { line: { color: '#ff4444' } }, // 빨간색: 상승
+            decreasing: { line: { color: '#4444ff' } }  // 파란색: 하락
         };
         stockTraces.push(candlestick);
 
@@ -444,7 +452,8 @@ function drawStockChart(stockData, ticker) {
         // 주가 차트 subplot 추가
         addSubplot(plotConfig, {
             name: 'stock',
-            yDomain: hasMomentumData ? [0.35, 1] : [0.15, 1],
+            yDomain: hasRsiData && hasMomentumData ? [0.55, 1] : 
+                     hasRsiData || hasMomentumData ? [0.35, 1] : [0.15, 1],
             xAxisId: 'x',
             yAxisId: 'y',
             yAxisConfig: {
@@ -656,12 +665,12 @@ function drawStockChart(stockData, ticker) {
             // Momentum 차트 subplot 추가
             addSubplot(plotConfig, {
                 name: 'momentum',
-                yDomain: [0, 0.3],
+                yDomain: hasRsiData ? [0.275, 0.525] : [0, 0.3],
                 xAxisId: 'x2',
                 yAxisId: 'y2',
                 xAxisConfig: {
                     title: {
-                        text: '날짜',
+                        text: hasRsiData ? '' : '날짜',
                         font: { color: '#ffffff' }
                     }
                 },
@@ -676,6 +685,291 @@ function drawStockChart(stockData, ticker) {
                 },
                 traces: momentumTraces,
                 shapes: momentumShapes
+            });
+        }
+
+        // === 3. RSI 차트 subplot 추가 (데이터가 있는 경우) ===
+        if (hasRsiData) {
+            const rsiTraces = [];
+            const rsiShapes = [];
+            
+            // RSI 라인 차트
+            rsiTraces.push({
+                x: xIndices,
+                y: rsi,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'RSI',
+                line: { color: '#00aaff', width: 2 },
+                opacity: 0.9
+            });
+
+            // RSI 30선 (과매도 기준선)
+            rsiTraces.push({
+                x: xIndices,
+                y: new Array(dates.length).fill(30),
+                type: 'scatter',
+                mode: 'lines',
+                name: 'RSI 30',
+                line: { color: '#ff6666', width: 1, dash: 'dash' },
+                showlegend: false,
+                hovertemplate: '<b>과매도 기준선</b><br>RSI: 30<extra></extra>'
+            });
+
+            // RSI 70선 (과매수 기준선)
+            rsiTraces.push({
+                x: xIndices,
+                y: new Array(dates.length).fill(70),
+                type: 'scatter',
+                mode: 'lines',
+                name: 'RSI 70',
+                line: { color: '#ff6666', width: 1, dash: 'dash' },
+                showlegend: false,
+                hovertemplate: '<b>과매수 기준선</b><br>RSI: 70<extra></extra>'
+            });
+
+            // RSI 50선 (중간선)
+            rsiTraces.push({
+                x: xIndices,
+                y: new Array(dates.length).fill(50),
+                type: 'scatter',
+                mode: 'lines',
+                name: 'RSI 50',
+                line: { color: '#888888', width: 1, dash: 'dot' },
+                showlegend: false,
+                hovertemplate: '<b>중간선</b><br>RSI: 50<extra></extra>'
+            });
+
+            // RSI 과매도 진입 신호
+            const oversoldEntryIndices = [];
+            const oversoldEntryValues = [];
+            rsiOversoldEntry.forEach((isEntry, index) => {
+                if (isEntry && rsi[index] !== null) {
+                    oversoldEntryIndices.push(index);
+                    oversoldEntryValues.push(rsi[index]);
+                }
+            });
+
+            // if (oversoldEntryIndices.length > 0) {
+            //     rsiTraces.push({
+            //         x: oversoldEntryIndices,
+            //         y: oversoldEntryValues,
+            //         type: 'scatter',
+            //         mode: 'markers',
+            //         name: 'RSI 과매도 진입',
+            //         marker: {
+            //             symbol: 'triangle-down',
+            //             size: 10,
+            //             color: '#ff4444',
+            //             line: { width: 2, color: '#ffffff' }
+            //         },
+            //         hovertemplate: '<b>RSI 과매도 진입</b><br>' +
+            //                        '날짜: %{text}<br>' +
+            //                        'RSI: %{y:.1f}<br>' +
+            //                        '<extra></extra>',
+            //         text: oversoldEntryIndices.map(i => dates[i]),
+            //         showlegend: true
+            //     });
+            // }
+
+            // // RSI 과매도 탈출 신호
+            // const oversoldExitIndices = [];
+            // const oversoldExitValues = [];
+            // rsiOversoldExit.forEach((isExit, index) => {
+            //     if (isExit && rsi[index] !== null) {
+            //         oversoldExitIndices.push(index);
+            //         oversoldExitValues.push(rsi[index]);
+            //     }
+            // });
+
+            // if (oversoldExitIndices.length > 0) {
+            //     rsiTraces.push({
+            //         x: oversoldExitIndices,
+            //         y: oversoldExitValues,
+            //         type: 'scatter',
+            //         mode: 'markers',
+            //         name: 'RSI 과매도 탈출',
+            //         marker: {
+            //             symbol: 'triangle-up',
+            //             size: 10,
+            //             color: '#44ff44',
+            //             line: { width: 2, color: '#ffffff' }
+            //         },
+            //         hovertemplate: '<b>RSI 과매도 탈출</b><br>' +
+            //                        '날짜: %{text}<br>' +
+            //                        'RSI: %{y:.1f}<br>' +
+            //                        '<extra></extra>',
+            //         text: oversoldExitIndices.map(i => dates[i]),
+            //         showlegend: true
+            //     });
+            // }
+
+            // RSI 과매수 진입 신호
+            const overboughtEntryIndices = [];
+            const overboughtEntryValues = [];
+            rsiOverboughtEntry.forEach((isEntry, index) => {
+                if (isEntry && rsi[index] !== null) {
+                    overboughtEntryIndices.push(index);
+                    overboughtEntryValues.push(rsi[index]);
+                }
+            });
+
+            if (overboughtEntryIndices.length > 0) {
+                rsiTraces.push({
+                    x: overboughtEntryIndices,
+                    y: overboughtEntryValues,
+                    type: 'scatter',
+                    mode: 'markers',
+                    name: 'RSI 과매수 진입',
+                    marker: {
+                        symbol: 'triangle-up',
+                        size: 10,
+                        color: '#ff8800',
+                        line: { width: 2, color: '#ffffff' }
+                    },
+                    hovertemplate: '<b>RSI 과매수 진입</b><br>' +
+                                   '날짜: %{text}<br>' +
+                                   'RSI: %{y:.1f}<br>' +
+                                   '<extra></extra>',
+                    text: overboughtEntryIndices.map(i => dates[i]),
+                    showlegend: true
+                });
+            }
+
+            // RSI 과매수 탈출 신호
+            const overboughtExitIndices = [];
+            const overboughtExitValues = [];
+            rsiOverboughtExit.forEach((isExit, index) => {
+                if (isExit && rsi[index] !== null) {
+                    overboughtExitIndices.push(index);
+                    overboughtExitValues.push(rsi[index]);
+                }
+            });
+
+            if (overboughtExitIndices.length > 0) {
+                rsiTraces.push({
+                    x: overboughtExitIndices,
+                    y: overboughtExitValues,
+                    type: 'scatter',
+                    mode: 'markers',
+                    name: 'RSI 과매수 탈출',
+                    marker: {
+                        symbol: 'triangle-down',
+                        size: 10,
+                        color: '#ffaa00',
+                        line: { width: 2, color: '#ffffff' }
+                    },
+                    hovertemplate: '<b>RSI 과매수 탈출</b><br>' +
+                                   '날짜: %{text}<br>' +
+                                   'RSI: %{y:.1f}<br>' +
+                                   '<extra></extra>',
+                    text: overboughtExitIndices.map(i => dates[i]),
+                    showlegend: true
+                });
+            }
+
+            // RSI 과매도/과매수 구간 색칠
+            let oversoldStart = null;
+            let overboughtStart = null;
+            
+            for (let i = 0; i < rsi.length; i++) {
+                const currentRsi = rsi[i];
+                if (currentRsi === null) continue;
+                
+                // 과매도 구간 처리
+                if (currentRsi < 30 && oversoldStart === null) {
+                    oversoldStart = i;
+                } else if (currentRsi >= 30 && oversoldStart !== null) {
+                    rsiShapes.push({
+                        type: 'rect',
+                        xref: hasRsiData && hasMomentumData ? 'x3' : 'x2',
+                        yref: hasRsiData && hasMomentumData ? 'y3 domain' : 'y2 domain',
+                        x0: oversoldStart,
+                        y0: 0,
+                        x1: i-1,
+                        y1: 1,
+                        fillcolor: 'rgba(255, 68, 68, 0.1)',
+                        line: { width: 0 },
+                        layer: 'below'
+                    });
+                    oversoldStart = null;
+                }
+                
+                // 과매수 구간 처리
+                if (currentRsi > 70 && overboughtStart === null) {
+                    overboughtStart = i;
+                } else if (currentRsi <= 70 && overboughtStart !== null) {
+                    rsiShapes.push({
+                        type: 'rect',
+                        xref: hasRsiData && hasMomentumData ? 'x3' : 'x2',
+                        yref: hasRsiData && hasMomentumData ? 'y3 domain' : 'y2 domain',
+                        x0: overboughtStart,
+                        y0: 0,
+                        x1: i-1,
+                        y1: 1,
+                        fillcolor: 'rgba(255, 136, 0, 0.1)',
+                        line: { width: 0 },
+                        layer: 'below'
+                    });
+                    overboughtStart = null;
+                }
+            }
+            
+            // 마지막까지 과매도/과매수 구간이 계속되는 경우
+            if (oversoldStart !== null) {
+                rsiShapes.push({
+                    type: 'rect',
+                    xref: hasRsiData && hasMomentumData ? 'x3' : 'x2',
+                    yref: hasRsiData && hasMomentumData ? 'y3 domain' : 'y2 domain',
+                    x0: oversoldStart,
+                    y0: 0,
+                    x1: dates.length - 1,
+                    y1: 1,
+                    fillcolor: 'rgba(255, 68, 68, 0.1)',
+                    line: { width: 0 },
+                    layer: 'below'
+                });
+            }
+            
+            if (overboughtStart !== null) {
+                rsiShapes.push({
+                    type: 'rect',
+                    xref: hasRsiData && hasMomentumData ? 'x3' : 'x2',
+                    yref: hasRsiData && hasMomentumData ? 'y3 domain' : 'y2 domain',
+                    x0: overboughtStart,
+                    y0: 0,
+                    x1: dates.length - 1,
+                    y1: 1,
+                    fillcolor: 'rgba(255, 136, 0, 0.1)',
+                    line: { width: 0 },
+                    layer: 'below'
+                });
+            }
+
+            // RSI 차트 subplot 추가
+            addSubplot(plotConfig, {
+                name: 'rsi',
+                yDomain: hasMomentumData ? [0, 0.25] : [0, 0.3],
+                xAxisId: hasRsiData && hasMomentumData ? 'x3' : 'x2',
+                yAxisId: hasRsiData && hasMomentumData ? 'y3' : 'y2',
+                xAxisConfig: {
+                    title: {
+                        text: '날짜',
+                        font: { color: '#ffffff' }
+                    }
+                },
+                yAxisConfig: {
+                    title: {
+                        text: 'RSI',
+                        font: { color: '#ffffff' }
+                    },
+                    range: [0, 100],
+                    tickmode: 'array',
+                    tickvals: [0, 20, 30, 50, 70, 80, 100],
+                    ticktext: ['0', '20', '30', '50', '70', '80', '100']
+                },
+                traces: rsiTraces,
+                shapes: rsiShapes
             });
         }
 
@@ -866,6 +1160,30 @@ function updateStockChart(tradingSignals = []) {
                         yaxis: 'y2'
                     });
                 }
+
+                // RSI 차트가 있으면 거기에도 신호 추가 (Momentum과 RSI가 동시에 있을 때만)
+                if (currentLayout && currentLayout.yaxis3) {
+                    tracesToAdd.push({
+                        x: buyIndices,
+                        y: new Array(buyIndices.length).fill(25),  // RSI 25 레벨에 표시
+                        type: 'scatter',
+                        mode: 'markers',
+                        name: '매수 (RSI)',
+                        marker: {
+                            symbol: 'triangle-up',
+                            size: 8,
+                            color: '#00ff44',
+                            line: { width: 1, color: '#ffffff' }
+                        },
+                        showlegend: false,
+                        hovertemplate: '<b>매수 신호</b><br>' +
+                                       '날짜: %{text}<br>' +
+                                       '<extra></extra>',
+                        text: buyDates,
+                        xaxis: 'x3',
+                        yaxis: 'y3'
+                    });
+                }
             }
         }
 
@@ -931,6 +1249,30 @@ function updateStockChart(tradingSignals = []) {
                         text: sellDates,
                         xaxis: 'x2',
                         yaxis: 'y2'
+                    });
+                }
+
+                // RSI 차트가 있으면 거기에도 신호 추가 (Momentum과 RSI가 동시에 있을 때만)
+                if (currentLayout && currentLayout.yaxis3) {
+                    tracesToAdd.push({
+                        x: sellIndices,
+                        y: new Array(sellIndices.length).fill(75),  // RSI 75 레벨에 표시
+                        type: 'scatter',
+                        mode: 'markers',
+                        name: '매도 (RSI)',
+                        marker: {
+                            symbol: 'triangle-down',
+                            size: 8,
+                            color: '#ff6600',
+                            line: { width: 1, color: '#ffffff' }
+                        },
+                        showlegend: false,
+                        hovertemplate: '<b>매도 신호</b><br>' +
+                                       '날짜: %{text}<br>' +
+                                       '<extra></extra>',
+                        text: sellDates,
+                        xaxis: 'x3',
+                        yaxis: 'y3'
                     });
                 }
             }

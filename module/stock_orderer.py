@@ -8,10 +8,30 @@ BACKTEST_FILEPATH = "data/state/backtest/"
 PAPER_FILEPATH = "data/state/paper/"
 LIVE_FILEPATH = "data/state/"
 
+"""
+    state.json
+    {
+        "balance": 10000000,  # 초기 자본금
+        "portfolioValue": 10000000,  # 포트폴리오 가치
+        "holdings": {
+            "ticker": {
+                "quantity": 0,  # 보유 수량
+                "average_price": 0.0,  # 평균 매입가
+            }
+        },  # 보유 종목
+        "trades": [],  # 거래 기록
+    }
+"""
 class Orderer:
     """
         주문 실행 모듈 인터페이스
     """
+    def __init__(self):
+        self.filepath = None    # 파일 경로를 저장할 변수
+        self.state = None  # 상태를 저장할 변수
+
+    def get_state(self):
+        return self.state
 
     def save_state(self, state):
         """
@@ -40,19 +60,6 @@ class Orderer:
         """
         raise NotImplementedError("This method should be overridden by subclasses")
 
-"""
-    state.json
-    {
-        "balance": 10000000,  # 초기 자본금
-        "holdings": {
-            "ticker": {
-                "quantity": 0,  # 보유 수량
-                "average_price": 0.0,  # 평균 매입가
-            }
-        },  # 보유 종목
-        "trades": [],  # 거래 기록
-    }
-"""
 class BackTest_Orderer(Orderer):
     """
         백테스트용 주문 실행 모듈

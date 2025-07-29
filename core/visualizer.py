@@ -138,6 +138,25 @@ def set_backtest_strategy():
         logger.error(f"Set strategy API error: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/backtest/add_sub_strategy', methods=['POST'])
+def add_backtest_sub_strategy():
+    """백테스트 서브 전략 추가 API"""
+    print("Received add sub strategy request")
+    try:
+        data = request.get_json()
+        sub_strategy = data.get('sub_strategy', 'RSI')
+        
+        global backtest_trader
+        if backtest_trader is None:
+            raise ValueError("Backtest trader is not initialized. Please set the strategy first.")
+        
+        backtest_trader.add_sub_strategy(sub_strategy)
+        return jsonify({'status': 'success', 'message': f'Sub strategy {sub_strategy} added'})
+    
+    except Exception as e:
+        logger.error(f"Add sub strategy API error: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/backtest/set_data', methods=['POST'])
 def set_backtest_data():
     """백테스트 데이터 설정 API"""

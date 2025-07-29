@@ -14,7 +14,11 @@ from module import stock_orderer
 from strategy.strategy import SignalType
 from strategy import            \
     macd_strategy,              \
-    squeeze_momentum_strategy
+    squeeze_momentum_strategy,  \
+    rsi_strategy                \
+
+from strategy.sub import        \
+    stop_loss_strategy
 
 STATE_DATA_DIR = "data/state"
 
@@ -24,7 +28,12 @@ logger = logging.getLogger(__name__)
 STRATEGIES = {
     "MACD":             macd_strategy.MACD_strategy,
     "SqueezeMomentum":  squeeze_momentum_strategy.SqueezeMomentum_strategy,
+    "RSI":              rsi_strategy.RSI_strategy,
     # 다른 전략들을 여기에 추가할 수 있습니다.
+}
+
+SUB_STRATEGIES = {
+    "StopLoss":        stop_loss_strategy.StopLoss_strategy,
 }
 
 class Trader:
@@ -53,6 +62,19 @@ class Trader:
             logger.info(f"Strategy set to {strategy_name}")
         else:
             raise ValueError(f"Unknown strategy: {strategy_name}")
+        
+    def add_sub_strategy(self, sub_strategy_name):
+        """서브 전략 추가"""
+        if self.strategy is None:
+            raise ValueError("Main strategy is not set. Please set the main strategy first.")
+        
+        if sub_strategy_name in STRATEGIES:
+            sub_strategy = STRATEGIES[sub_strategy_name]()
+            self.strategy.add_sub_strategy(sub_strategy)
+            print(f"Sub strategy {sub_strategy_name} added")
+            logger.info(f"Sub strategy {sub_strategy_name} added")
+        else:
+            raise ValueError(f"Unknown sub strategy: {sub_strategy_name}")
 
 
     def set_data(self, ticker, start_date, end_date):

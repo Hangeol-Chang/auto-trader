@@ -165,7 +165,7 @@ class SqueezeMomentum_strategy(STRATEGY):
             raise ValueError("DataFrame is not set. Please set the DataFrame using set_data() method.")
         return self.dataFrame
 
-    def run(self, target_time=None) -> TradingSignal:
+    def run(self, target_time=None, state=None) -> TradingSignal:
         if target_time is None:
             raise ValueError("targetTime must be provided")
         if self.dataFrame is None:
