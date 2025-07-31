@@ -50,11 +50,13 @@ def columnname_convert(cols: Union[List[str], str], as_is: str = "kis", to_be: s
     
     # Create reverse mapping for source format (value -> key)
     source_reverse_map = {v: k for k, v in source_table.items()}
-    
+    print(source_reverse_map)
+
     def convert_single_column(col_name: str) -> str:
         # Find the standardized key for this column value
         if col_name in source_reverse_map:
             standard_key = source_reverse_map[col_name]
+            print(f"Standardized key for {col_name}: {standard_key}")
             # Return the target format value for this standard key
             if standard_key in target_table:
                 return target_table[standard_key]

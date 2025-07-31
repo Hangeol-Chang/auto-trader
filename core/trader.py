@@ -12,12 +12,13 @@ import pandas as pd
 from module import stock_data_manager
 from module import stock_orderer
 from strategy.strategy import SignalType
-from strategy import            \
-    macd_strategy,              \
-    squeeze_momentum_strategy,  \
-    rsi_strategy                \
+from strategy import    \
+    ma_strategy, \
+    macd_strategy, \
+    squeeze_momentum_strategy, \
+    rsi_strategy
 
-from strategy.sub import        \
+from strategy.sub import \
     stop_loss_strategy
 
 STATE_DATA_DIR = "data/state"
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 STRATEGIES = {
+    "MA":               ma_strategy.MA_strategy,
     "MACD":             macd_strategy.MACD_strategy,
     "SqueezeMomentum":  squeeze_momentum_strategy.SqueezeMomentum_strategy,
     "RSI":              rsi_strategy.RSI_strategy,
@@ -83,17 +85,20 @@ class Trader:
         # start_date부터 end_date까지를
         print(f"{start_date} ~ {end_date} 기간의 데이터를 가져옵니다.")
         dataFrame = stock_data_manager.get_itempricechart_2(
-            itm_no=ticker,  # 삼성전자
+            itm_no=ticker,
             start_date=start_date, end_date=end_date
         )
         data = self.strategy.set_data(ticker, dataFrame)
+        print(f"Data for {ticker} set with {len(self.strategy.dataFrame)} records")
+        print(data)
+        
         return data.to_json(orient='records')
 
     def run_backtest(self, ticker, start_date, end_date):
         print("\n============= Backtest Start =============")
         print(f"Running backtest for {ticker} from {start_date} to {end_date}...")
 
-        now = stock_data_manager.get_next_trading_day(start_date)
+        now = stock_data_manager.get_next_trading_day(start_date, ticker=ticker)
 
         # trade_info = pd.DataFrame()
         while now <= end_date:
@@ -113,7 +118,7 @@ class Trader:
             self.orderer.place_order(order_info=res)
             # 신호에 따라 매매 로직 수행
             now = stock_data_manager.get_offset_date(now, 1)  # 다음 거래일로 이동
-            now = stock_data_manager.get_next_trading_day(now)
+            now = stock_data_manager.get_next_trading_day(now, ticker=ticker)
 
         # print(trade_info)
         trade_result = self.orderer.end_test()

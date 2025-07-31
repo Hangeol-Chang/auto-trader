@@ -29,7 +29,7 @@ async function executeBacktest() {
             const errorData = await res1.json();
             throw new Error(errorData.error || '전략 설정 중 오류 발생');
         }
-        // console.log('전략 설정 완료:', res1);
+        console.log('전략 설정 완료:', res1);
 
         const res2 = await fetch('/api/backtest/set_data', {
             method: 'POST',

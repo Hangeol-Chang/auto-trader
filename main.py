@@ -3,6 +3,7 @@ import time
 import logging
 
 from core import visualizer, trader
+from module import stock_data_manager
 
 # INVEST_TYPE = "PROD"  # 실전투자
 INVEST_TYPE = "VPS"    # 모의투자
@@ -32,7 +33,6 @@ def run_trader():
 
 if __name__ == "__main__":
     setup_logging()
-    
     # 멀티프로세싱으로 필요한 모듈들을 실행
     processes = []
     

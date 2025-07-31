@@ -87,6 +87,47 @@
             
         }
     },
+    "yfi": {
+        "type": "raw",
+        "table": {
+            "current_price": "Current Price",
+            "previous_close": "Previous Close",
+            "open": "Open",
+            "high": "High",
+            "low": "Low",
+            "previous_open": "Previous Open",
+            "previous_high": "Previous High",
+            "previous_low": "Previous Low",
+            "price_change": "Price Change",
+            "price_change_sign": "Price Change Sign",
+            "price_change_rate": "Price Change Rate",
+            "volume": "Volume",
+            "trade_amount": "Trade Amount",
+            "previous_volume": "Previous Volume",
+            "volume_change": "Volume Change",
+            "volume_turnover_rate": "Volume Turnover Rate",
+            "ask_price": "Ask Price",
+            "bid_price": "Bid Price",
+            "stock_name": "Stock Name",
+            "stock_code": "Stock Code",
+            "upper_limit": "Upper Limit",
+            "lower_limit": "Lower Limit",
+            "face_value": "Face Value",
+            "listed_shares": "Listed Shares",
+            "capital": "Capital",
+            "market_cap": "Market Cap",
+            "per": "PER",
+            "eps": "EPS",
+            "pbr": "PBR",
+            "loan_balance_rate": "Loan Balance Rate",
+            "date": "Date",
+            "close": "Close",
+            "rights_code": "Rights Code",
+            "split_ratio": "Split Ratio",
+            "adjusted_price_flag": "Adjusted Price Flag",
+            "revaluation_reason": "Revaluation Reason"
+        }
+    },
     "kor" : {
         "type": "raw",
         "table": {
