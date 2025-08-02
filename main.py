@@ -32,36 +32,44 @@ def run_trader():
         print(f"Trader app error: {e}")
 
 if __name__ == "__main__":
-    setup_logging()
-    # 멀티프로세싱으로 필요한 모듈들을 실행
-    processes = []
+    data = stock_data_manager.get_itempricechart_2(
+        ticker="AAPL",  # 삼성전자
+        start_date="20230101", 
+        end_date="20231231"
+    )
+    print(data)
+    print("test end")
     
-    try:
-        # 플라스크 서버 프로세스
-        flask_process = multiprocessing.Process(target=run_flask_server)
-        flask_process.start()
-        processes.append(flask_process)
+#     setup_logging()
+#     # 멀티프로세싱으로 필요한 모듈들을 실행
+#     processes = []
+    
+#     try:
+#         # 플라스크 서버 프로세스
+#         flask_process = multiprocessing.Process(target=run_flask_server)
+#         flask_process.start()
+#         processes.append(flask_process)
         
-        # 트레이더 앱 프로세스  
-        # trader_process = multiprocessing.Process(target=run_trader)
-        # trader_process.start()
-        # processes.append(trader_process)
+#         # 트레이더 앱 프로세스  
+#         # trader_process = multiprocessing.Process(target=run_trader)
+#         # trader_process.start()
+#         # processes.append(trader_process)
         
-        print("All processes started. Press Ctrl+C to exit...")
+#         print("All processes started. Press Ctrl+C to exit...")
         
-        # 모든 프로세스가 실행될 때까지 대기
-        for process in processes:
-            process.join()
+#         # 모든 프로세스가 실행될 때까지 대기
+#         for process in processes:
+#             process.join()
             
-    except KeyboardInterrupt:
-        print("\nShutting down...")
+#     except KeyboardInterrupt:
+#         print("\nShutting down...")
         
-        # 모든 프로세스 종료
-        for process in processes:
-            if process.is_alive():
-                process.terminate()
-                process.join(timeout=5)
-                if process.is_alive():
-                    process.kill()
+#         # 모든 프로세스 종료
+#         for process in processes:
+#             if process.is_alive():
+#                 process.terminate()
+#                 process.join(timeout=5)
+#                 if process.is_alive():
+#                     process.kill()
         
-        print("All processes terminated.")
+#         print("All processes terminated.")

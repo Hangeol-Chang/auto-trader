@@ -1,8 +1,10 @@
 '''
+    RULES
+    - column name은 무조건 소문자로 작성.
+    - 이 파일 외부에서 column_name을 my_app의 것으로만 사용
+    - 이 파일 외부에서 날짜는 YYYYMMDD 형식으로 사용
+
     TODO
-    - 전체 데이터 검색에 대해, 로컬 db를 먼저 뒤져보고 없으면 가져와야 함. ✅ (CSV 캐싱 구현됨)
-    - 그리고 가져온 데이터는 무조건 저장해둘 것. ✅ (CSV 저장 구현됨)
-    
     ** COLUMN name 변환?
     - 변환은 여기서 전부 처리해야 함.
     - 이 파일 외부에서는 my_app의 column name만 사용할 것임.
@@ -14,17 +16,16 @@
     - 데이터는 data/stock_cache/ 디렉토리에 저장됨
 '''
 
-import inspect
 from unittest import result
 import pandas as pd
 import os
 from datetime import datetime, timedelta
+from pykrx import stock
 import yfinance as yf
 import time
 import re
 
-# KIS API 관련 import 제거 (yfinance로 대체)
-# import module.kis_fetcher as kis_fetcher
+import module.kis_fetcher as kis_fetcher
 import module.column_mapper as column_mapper
 
 
@@ -37,18 +38,14 @@ COUNTRY_REPRESENTATIVE_TICKERS = {
     'KR': '005930.KS',      # 삼성전자 (한국)
     'US': 'AAPL',           # Apple (미국)
     'JP': '7203.T',         # Toyota (일본)
-    'CN': '000001.SS',      # 상해종합지수 ETF (중국)
+    # 'CN': '000001.SS',      # 상해종합지수 ETF (중국)
     'HK': '0700.HK',        # Tencent (홍콩)
-    'GB': 'LLOY.L',         # Lloyds Banking (영국)
-    'CA': 'SHOP.TO',        # Shopify (캐나다)
-    'AU': 'CBA.AX',         # Commonwealth Bank (호주)
+    # 'AU': 'CBA.AX',         # Commonwealth Bank (호주)
 }
 
 ##############################################################################################
 # 날짜 관련 로직
 ##############################################################################################
-
-# 티커에서 국가 코드 추출
 def get_country_code_from_ticker(ticker: str) -> str:
     ticker = ticker.upper().strip()
 
@@ -144,7 +141,6 @@ def get_trading_days(year: str, country_code: str = 'KR') -> list:
             print(f"[오류] {file_path} 읽기 실패: {e}")
             return []
 
-
 def split_dates_by_days(start_date: int, end_date: int, days=100) -> list:
     start = datetime.strptime(str(start_date), "%Y%m%d")
     end = datetime.strptime(str(end_date), "%Y%m%d")
@@ -168,13 +164,12 @@ def split_dates_by_days(start_date: int, end_date: int, days=100) -> list:
 
     return date_list
 
-def get_next_trading_day(base_date, ticker=None) -> str:
+def get_next_trading_day(base_date, country_code = "KR") -> str:
     """
         다음 거래일을 반환합니다.
     Args:
         base_date: 기준일 (str "YYYYMMDD" 형식 또는 int YYYYMMDD)
-        ticker: 종목 코드 (국가 구분용, 없으면 한국 기본값)
-        
+        country_code: 국가 코드 (예: 'KR', 'US', 'JP' 등)
     Returns:
         str: "YYYYMMDD" 형식의 다음 거래일
     """
@@ -189,16 +184,11 @@ def get_next_trading_day(base_date, ticker=None) -> str:
     if len(base_date_str) != 8 or not base_date_str.isdigit():
         raise ValueError(f"날짜는 8자리 숫자여야 합니다. 입력값: {base_date}")
     
-    # 국가 코드 추출
-    country_code = 'KR'  # 기본값
-    if ticker:
-        country_code = get_country_code_from_ticker(ticker)
-    
     base_date = datetime.strptime(base_date_str, "%Y%m%d")
     year = base_date.year
 
     while True:
-        trading_days = get_trading_days(str(year), country_code)
+        trading_days = get_trading_days(str(year), country_code=country_code)
         future_days = [d for d in trading_days if d >= base_date]
         if future_days:
             return future_days[0].strftime("%Y%m%d")
@@ -211,14 +201,12 @@ def get_next_trading_day(base_date, ticker=None) -> str:
         # 아니면 다음 연도로 넘어김.
         year += 1
 
-def get_previous_trading_day(base_date, ticker=None) -> str:
+def get_previous_trading_day(base_date, country_code = "KR") -> str:
     """
     이전 거래일을 반환합니다.
-    
     Args:
         base_date: 기준일 (str "YYYYMMDD" 형식 또는 int YYYYMMDD)
-        ticker: 종목 코드 (국가 구분용, 없으면 한국 기본값)
-        
+        country_code: 국가 코드 (예: 'KR', 'US', 'JP' 등)
     Returns:
         str: "YYYYMMDD" 형식의 이전 거래일
     """
@@ -232,29 +220,23 @@ def get_previous_trading_day(base_date, ticker=None) -> str:
     if len(base_date_str) != 8 or not base_date_str.isdigit():
         raise ValueError(f"날짜는 8자리 숫자여야 합니다. 입력값: {base_date}")
     
-    # 국가 코드 추출
-    country_code = 'KR'  # 기본값
-    if ticker:
-        country_code = get_country_code_from_ticker(ticker)
-    
     base_date = datetime.strptime(base_date_str, "%Y%m%d")
     year = base_date.year
 
     while True:
-        trading_days = get_trading_days(str(year), country_code)
+        trading_days = get_trading_days(str(year), country_code=country_code)
         past_days = [d for d in trading_days if d <= base_date]
         if past_days:
             return past_days[-1].strftime("%Y%m%d")
         year -= 1
 
-def get_trading_days_in_range(start_date_str: str, end_date_str: str, ticker=None) -> list:
+def get_trading_days_in_range(start_date_str: str, end_date_str: str, country_code = "KR") -> list:
     """
     시작일부터 종료일까지의 모든 개장일을 반환합니다.
 
     Args:
         start_date_str (str): "YYYYMMDD" 형식의 시작일
         end_date_str (str): "YYYYMMDD" 형식의 종료일
-        ticker (str): 종목 코드 (국가 구분용, 없으면 한국 기본값)
 
     Returns:
         list of datetime: 범위 내 개장일 리스트
@@ -262,19 +244,13 @@ def get_trading_days_in_range(start_date_str: str, end_date_str: str, ticker=Non
     start_date = datetime.strptime(start_date_str, "%Y%m%d")
     end_date = datetime.strptime(end_date_str, "%Y%m%d")
 
-    print(f"get_trading_days_in_range: {start_date} ~ {end_date}")
     if start_date > end_date:
         raise ValueError("start_date must be before or equal to end_date")
 
-    # 국가 코드 추출
-    country_code = 'KR'  # 기본값
-    if ticker:
-        country_code = get_country_code_from_ticker(ticker)
-
+    print(f"get_trading_days_in_range: {start_date} ~ {end_date}")
     trading_days = []
-    print(f"get_trading_days_in_range: {start_date} ~ {end_date} ({country_code})")
     for year in range(start_date.year, end_date.year + 1):
-        year_days = get_trading_days(str(year), country_code)
+        year_days = get_trading_days(str(year), country_code=country_code)
         trading_days.extend(year_days)
 
     # 범위 내로 필터링
@@ -292,11 +268,9 @@ def get_valid_date_range(start_date=None, end_date=None, day_padding=14):
 def get_offset_date(base_date, offset_days):
     """
     기준 날짜에서 지정된 일수만큼 오프셋된 날짜를 반환합니다.
-    
     Args:
         base_date (str or int): 기준 날짜 (YYYYMMDD 형식의 문자열 또는 정수)
         offset_days (int): 오프셋할 일수 (양수: 미래, 음수: 과거)
-        
     Returns:
         str: YYYYMMDD 형식의 오프셋된 날짜
     """
@@ -311,11 +285,9 @@ def get_offset_date(base_date, offset_days):
     
     return offset_date.strftime("%Y%m%d")
 
-
 ##############################################################################################
 # 데이터 저장 관련 로직
 ##############################################################################################
-
 def _check_date_exists_in_data(existing_data, target_date, date_column='date'):
     """기존 데이터에 특정 날짜가 있는지 확인"""
     if existing_data is None or existing_data.empty:
@@ -337,21 +309,18 @@ def _check_date_exists_in_data(existing_data, target_date, date_column='date'):
     print(f"날짜 컬럼 '{date_column}'이 데이터에 없습니다.")
     return False
 
-def _ensure_data_directory(country_code='KR'):
-    """데이터 저장 디렉토리가 없으면 생성 (국가별)"""
-    country_dir = os.path.join(DATA_DIR, country_code)
-    if not os.path.exists(country_dir):
-        os.makedirs(country_dir)
-    return country_dir
+def _ensure_data_directory():
+    """데이터 저장 디렉토리가 없으면 생성"""
+    if not os.path.exists(DATA_DIR):
+        os.makedirs(DATA_DIR)
 
-def _generate_csv_filename(itm_no, api_name, period_code="D", country_code='KR'):
-    """CSV 파일명 생성 규칙: {종목번호}_{API명}_{기간코드}.csv (국가별 디렉토리)"""
+def _generate_csv_filename(itm_no, api_name, period_code="D"):
+    """CSV 파일명 생성 규칙: {종목번호}_{API명}_{기간코드}.csv"""
     return f"{itm_no}_{api_name}_{period_code}.csv"
 
 def _get_csv_filepath(filename, country_code='KR'):
-    """CSV 파일의 전체 경로 반환 (국가별)"""
-    country_dir = _ensure_data_directory(country_code)
-    return os.path.join(country_dir, filename)
+    """CSV 파일의 전체 경로 반환"""
+    return os.path.join(DATA_DIR, country_code, filename)
 
 def _load_existing_data(csv_filepath):
     """기존 CSV 파일에서 데이터 로드"""
@@ -367,8 +336,7 @@ def _load_existing_data(csv_filepath):
 def _save_data_to_csv(dataframe, csv_filepath):
     """데이터를 CSV 파일로 저장"""
     try:
-        # 디렉토리가 없으면 생성
-        os.makedirs(os.path.dirname(csv_filepath), exist_ok=True)
+        _ensure_data_directory()
         # 날짜순으로 정렬하여 저장
         dataframe_sorted = dataframe.sort_values(by='date').reset_index(drop=True)
         dataframe_sorted.to_csv(csv_filepath, index=False, encoding='utf-8-sig')
@@ -384,10 +352,6 @@ def _merge_and_save_data(existing_data, new_data, csv_filepath, date_column='dat
     # 두 데이터프레임 모두 날짜 컬럼을 문자열로 통일
     if existing_data is not None:
         existing_data[date_column] = existing_data[date_column].astype(str)
-    
-    print('existing_data:', existing_data.shape if existing_data is not None else 'None')
-    print('new_data:', new_data.shape if new_data is not None else 'None')
-
     new_data[date_column] = new_data[date_column].astype(str)
 
     if existing_data is None or existing_data.empty:
@@ -420,71 +384,25 @@ def get_daily_price(
         div_code="J", itm_no="", 
         period_code="D", adj_prc_code="0", tr_cont="", 
         dataframe=None
-    ):  # [yfinance] 주식 일별 가격 데이터
-    """
-    yfinance를 사용하여 주식의 일별 가격 데이터를 가져옴
-    
-    Args:
-        div_code (str): 시장 구분 (J: 주식, 사용되지 않음)
-        itm_no (str): 종목번호 (6자리) 또는 티커
-        period_code (str): 기간 코드 (D: 일, W: 주, M: 월)
-        adj_prc_code (str): 수정주가 반영 여부 (0: 반영, 1: 미반영)
-        tr_cont (str): 연속 조회 키 (사용되지 않음)
-        dataframe: 기존 데이터프레임 (사용되지 않음)
-    
-    Returns:
-        pd.DataFrame: 주식 가격 데이터
-    """
-    try:
-        # 기간에 따른 period 설정
-        if period_code == "D":
-            period = "1mo"  # 최근 30일
-        elif period_code == "W":
-            period = "6mo"  # 최근 6개월 (주별 데이터)
-        elif period_code == "M":
-            period = "2y"   # 최근 2년 (월별 데이터)
-        else:
-            period = "1mo"  # 기본값
-        
-        # yfinance로 데이터 가져오기
-        data = get_yfinance_data(itm_no, period=period)
-        
-        if data.empty:
-            print(f"데이터를 가져올 수 없습니다: {itm_no}")
-            return pd.DataFrame()
-        
-        # 기간에 따른 리샘플링
-        if period_code == "W":
-            # 주별 데이터로 리샘플링
-            data = data.resample('W').agg({
-                'Open': 'first',
-                'High': 'max',
-                'Low': 'min',
-                'Close': 'last',
-                'Volume': 'sum'
-            }).dropna()
-        elif period_code == "M":
-            # 월별 데이터로 리샘플링
-            data = data.resample('M').agg({
-                'Open': 'first',
-                'High': 'max',
-                'Low': 'min',
-                'Close': 'last',
-                'Volume': 'sum'
-            }).dropna()
-        
-        # 최근 30건으로 제한
-        data = data.tail(30)
-        
-        # 날짜를 문자열 형태로 변환
-        data = data.reset_index()
-        data['date'] = data['date'].dt.strftime('%Y%m%d')
-        
-        return data
-        
-    except Exception as e:
-        print(f"get_daily_price 오류: {e}")
-        return pd.DataFrame()
+    ):  # [국내주식] 기본시세 > 주식현재가 일자별
+    url = '/uapi/domestic-stock/v1/quotations/inquire-daily-price'
+    tr_id = "FHKST01010400"  # 주식현재가 일자별
+
+    params = {
+        "FID_COND_MRKT_DIV_CODE": div_code, # 시장 분류 코드  J : 주식/ETF/ETN, W: ELW
+        "FID_INPUT_ISCD": itm_no,           # 종목번호 (6자리) ETN의 경우, Q로 시작 (EX. Q500001)
+        "FID_PERIOD_DIV_CODE": period_code, # 기간분류코드 D : (일)최근 30거래일, W : (주)최근 30주, M : (월)최근 30개월
+        "FID_ORG_ADJ_PRC": adj_prc_code     # 0 : 수정주가반영, 1 : 수정주가미반영 * 수정주가는 액면분할/액면병합 등 권리 발생 시 과거 시세를 현재 주가에 맞게 보정한 가격
+    }
+    res = kis_fetcher._url_fetch(url, tr_id, tr_cont, params)
+
+    # Assuming 'output' is a dictionary that you want to convert to a DataFrame
+    current_data = pd.DataFrame(res.getBody().output)  # getBody() kis_auth.py 존재
+
+    # Convert KIS column names to my_app format with dual header (Korean + my_app)
+    dataframe = column_mapper.convert_dataframe_columns(current_data, as_is="kis", to_be="my_app")
+
+    return dataframe
 
 ##############################################################################################
 # [국내주식] 기본시세 > 국내주식기간별시세(일/주/월/년)
@@ -495,250 +413,180 @@ def get_daily_price(
 # Input: None (Option) 상세 Input값 변경이 필요한 경우 API문서 참조
 # Output: DataFrame (Option) output
 def get_itempricechart_1(
-    div_code="J",   # 시장 분류 코드 (사용되지 않음)
-    itm_no="",      # 종목번호 (6자리) 또는 티커
-    tr_cont="",     # 트랜잭션 내용 (사용되지 않음)
+    div_code="J",   # 시장 분류 코드 J: 주식/ETF/ETN, W: ELW
+    itm_no="",      # 종목번호 (6자리) ETN의 경우, Q로 시작 (EX. Q500001)
+    tr_cont="",     # 트랜잭션 내용 (선택사항)
     start_date = None,
     end_date = None,
     period_code="D", 
-    adj_prc="0",    # 수정주가 (yfinance는 기본적으로 수정주가 사용)
+    adj_prc="0",    # 수정주가 0:수정주가 1:원주가
     dataframe=None
-) :    
-    """
-    yfinance를 사용하여 주식의 현재가 정보를 가져옴
+) :
+    country_code = get_country_code_from_ticker(itm_no)
     
-    Args:
-        itm_no (str): 종목번호 또는 티커
-        start_date, end_date: 사용되지 않음 (현재가 정보이므로)
-        period_code (str): 기간 코드 (사용되지 않음)
-        
-    Returns:
-        pd.DataFrame: 현재가 정보
-    """
-    try:
-        # yfinance로 최신 데이터 가져오기 (1일치만)
-        data = get_yfinance_data(itm_no, period='1d')
-        
-        if data.empty:
-            print(f"현재가 데이터를 가져올 수 없습니다: {itm_no}")
-            return pd.DataFrame()
-        
-        # 최신 데이터 1개만 선택
-        latest_data = data.tail(1).copy()
-        
-        # 인덱스가 Date인 경우 컬럼으로 변환
-        if 'date' not in latest_data.columns:
-            latest_data = latest_data.reset_index()
-        
-        # 날짜를 문자열로 변환
-        if 'date' in latest_data.columns:
-            latest_data['date'] = pd.to_datetime(latest_data['date']).dt.strftime('%Y%m%d')
-        elif 'Date' in latest_data.columns:
-            latest_data['date'] = pd.to_datetime(latest_data['Date']).dt.strftime('%Y%m%d')
-            latest_data = latest_data.drop('Date', axis=1)  # 기존 Date 컬럼 제거
+    start_date, end_date = get_valid_date_range(start_date, end_date, day_padding=14)
+    start_date = get_next_trading_day(start_date, country_code=country_code)
+    end_date = get_previous_trading_day(end_date, country_code=country_code)
 
-        print(f"현재가 정보 조회 완료: {itm_no}")
-        
-        return latest_data
-        
-    except Exception as e:
-        print(f"get_itempricechart_1 오류: {e}")
-        return pd.DataFrame()
+    print(f"조회 기간: {start_date} ~ {end_date}")
+
+    url = '/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice'
+    tr_id = "FHKST03010100"  # 주식현재가 회원사
+
+    params = {
+        "FID_COND_MRKT_DIV_CODE": div_code, # 시장 분류 코드  J : 주식/ETF/ETN, W: ELW
+        "FID_INPUT_ISCD": itm_no,           # 종목번호 (6자리) ETN의 경우, Q로 시작 (EX. Q500001)
+        "FID_INPUT_DATE_1": start_date,   # 입력 날짜 (시작) 조회 시작일자 (ex. 20220501)
+        "FID_INPUT_DATE_2": end_date,    # 입력 날짜 (종료) 조회 종료일자 (ex. 20220530)
+        "FID_PERIOD_DIV_CODE": period_code, # 기간분류코드 D:일봉, W:주봉, M:월봉, Y:년봉
+        "FID_ORG_ADJ_PRC": adj_prc          # 수정주가 0:수정주가 1:원주가
+    }
+    
+    print("API에서 새로운 데이터를 가져옵니다...")
+    res = kis_fetcher._url_fetch(url, tr_id, tr_cont, params)
+
+    # output1: 현재가 정보 (실시간 상태)
+    current_data = pd.DataFrame(res.getBody().output1, index=[0])  # 현재가 정보
+
+    # Convert KIS column name to my_app column 
+    dataframe = column_mapper.convert_dataframe_columns(current_data, as_is="kis", to_be="my_app")
+    
+    # 새로운 데이터를 CSV에 저장 (기존 데이터와 병합)
+    # result_data = _merge_and_save_data(existing_data, dataframe, csv_filepath)
+    return dataframe
 
 def get_itempricechart_2(
-        div_code="J",   # 시장 분류 코드 (사용되지 않음)
-        itm_no="",      # 종목번호 (6자리) 또는 티커
-        tr_cont="",     # 트랜잭션 내용 (사용되지 않음)
+        div_code="J",   # 시장 분류 코드 J: 주식/ETF/ETN, W: ELW
+        ticker="",      # 종목번호 (6자리) ETN의 경우, Q로 시작 (EX. Q500001)
+        tr_cont="",     # 트랜잭션 내용 (선택사항)
         start_date=None, end_date=None, 
         period_code="D", adj_prc="0", dataframe=None
 ):  
-    """
-    yfinance를 사용하여 주식의 기간별 OHLCV 히스토리 데이터를 가져옴
+    # 국내, 해외 종합 지수조회
+    country_code = get_country_code_from_ticker(ticker)
     
-    Args:
-        itm_no (str): 종목번호 또는 티커
-        start_date (str): 시작 날짜 (YYYYMMDD)
-        end_date (str): 종료 날짜 (YYYYMMDD)
-        period_code (str): 기간 코드 (D: 일봉, W: 주봉, M: 월봉)
-        
-    Returns:
-        pd.DataFrame: 기간별 OHLCV 데이터
-    """
-    try:
-        # 날짜 범위가 지정되지 않은 경우 기본값 설정
-        if not start_date or not end_date:
-            start_date, end_date = get_valid_date_range(start_date, end_date, day_padding=14)
-        
-        # yfinance로 데이터 가져오기
-        data = get_yfinance_data(itm_no, start_date, end_date)
-        
-        if data.empty:
-            print(f"히스토리 데이터를 가져올 수 없습니다: {itm_no}")
-            return pd.DataFrame()
-        
-        # 기간에 따른 리샘플링
-        if period_code == "W":
-            # Date가 인덱스일 수 있으므로 확인 후 리샘플링
-            if 'date' not in data.columns:
-                # Date가 인덱스인 경우 그대로 리샘플링
-                data = data.resample('W').agg({
-                    'open': 'first',
-                    'high': 'max',
-                    'low': 'min',
-                    'close': 'last',
-                    'volume': 'sum'
-                }).dropna()
-                data = data.reset_index()  # 인덱스를 컬럼으로 변환
-            else:
-                # date가 컬럼인 경우 인덱스로 설정 후 리샘플링
-                data = data.set_index('date').resample('W').agg({
-                    'open': 'first',
-                    'high': 'max',
-                    'low': 'min',
-                    'close': 'last',
-                    'volume': 'sum'
-                }).dropna().reset_index()
-                
-        elif period_code == "M":
-            # Date가 인덱스일 수 있으므로 확인 후 리샘플링
-            if 'date' not in data.columns:
-                # Date가 인덱스인 경우 그대로 리샘플링
-                data = data.resample('M').agg({
-                    'open': 'first',
-                    'high': 'max',
-                    'low': 'min',
-                    'close': 'last',
-                    'volume': 'sum'
-                }).dropna()
-                data = data.reset_index()  # 인덱스를 컬럼으로 변환
-            else:
-                # date가 컬럼인 경우 인덱스로 설정 후 리샘플링
-                data = data.set_index('date').resample('M').agg({
-                    'open': 'first',
-                    'high': 'max',
-                    'low': 'min',
-                    'close': 'last',
-                    'volume': 'sum'
-                }).dropna().reset_index()
-        
-        # 날짜를 문자열로 변환
-        if 'date' in data.columns:
-            data['date'] = pd.to_datetime(data['date']).dt.strftime('%Y%m%d')
-        elif 'Date' in data.columns:
-            data['date'] = pd.to_datetime(data['Date']).dt.strftime('%Y%m%d')
-            data = data.drop('Date', axis=1)  # 기존 Date 컬럼 제거
-        
-        result_columns = ['date', 'open', 'high', 'low', 'close', 'volume']
-        data = data[[col for col in result_columns if col in data.columns]]
-        
-        # 데이터 타입 변환
-        for col in data.columns:
-            if col != 'date':
-                data[col] = pd.to_numeric(data[col], errors='coerce')
-        
-        print(f"히스토리 데이터 조회 완료: {itm_no} ({len(data)}건)")
-        
-        # 파일로 저장
-        csv_filename = _generate_csv_filename(itm_no, "itemchartprice_history", period_code)
-        csv_filepath = _get_csv_filepath(csv_filename, country_code=get_country_code_from_ticker(itm_no))
+    # CSV 파일명 생성 (API 이름에 output2를 추가해 구분)
+    csv_filename = _generate_csv_filename(ticker, "itemchartprice_history", period_code)
+    csv_filepath = _get_csv_filepath(csv_filename, country_code=country_code)
+    # 기존 데이터 로드
+    existing_data = None
 
-        data.to_csv(csv_filepath, index=False)
-        print(f"히스토리 데이터 파일 저장 완료: {csv_filepath}")
+    start_date, end_date = get_valid_date_range(start_date, end_date, day_padding=14)
+    _ori_start_date = start_date
+    _ori_end_date = end_date
 
-        print(data)
-        return data
-        
-    except Exception as e:
-        print(f"get_itempricechart_2 오류: {e}")
-        return pd.DataFrame()
+    date_list = split_dates_by_days(start_date, end_date, days=100)
 
-def get_yfinance_data(
-        ticker_code="",      # 종목번호 또는 티커
-        start_date=None, 
-        end_date=None, 
-        period='1y'          # 기간 (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max)
-):
-    """
-    yfinance를 사용하여 주식 데이터를 가져오는 함수
-    
-    Args:
-        ticker_code (str): 종목번호 또는 티커 (예: '005930', 'AAPL', '7203.T')
-        start_date (str): 시작 날짜 (YYYY-MM-DD 또는 YYYYMMDD)
-        end_date (str): 종료 날짜 (YYYY-MM-DD 또는 YYYYMMDD)
-        period (str): 기간 ('1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max')
-    
-    Returns:
-        pd.DataFrame: 주식 데이터 (Date, Open, High, Low, Close, Volume)
-    """
-    try:
-        if not ticker_code:
-            print("ticker_code가 제공되지 않았습니다.")
-            return pd.DataFrame()
-        
-        # 한국 종목인 경우 yfinance 형식으로 변환
-        yf_ticker = ticker_code
-        if ticker_code.isdigit() and len(ticker_code) == 6:
-            # 한국 종목 코드인 경우
-            # KOSPI는 .KS, KOSDAQ은 .KQ 접미사 추가
-            # 일단 .KS로 시도하고 실패하면 .KQ로 재시도
-            yf_ticker = f"{ticker_code}.KS"
-        
-        # yfinance Ticker 객체 생성
-        stock = yf.Ticker(yf_ticker)
-        
-        # 날짜 범위가 지정된 경우
-        if start_date and end_date:
-            # 날짜 형식 변환 (YYYYMMDD -> YYYY-MM-DD)
-            if isinstance(start_date, str) and len(start_date) == 8:
-                start_date = f"{start_date[:4]}-{start_date[4:6]}-{start_date[6:]}"
-            if isinstance(end_date, str) and len(end_date) == 8:
-                end_date = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:]}"
-            
-            data = stock.history(start=start_date, end=end_date)
+    result_data = None
+    for st_date, ed_date in date_list:
+        st_date = get_next_trading_day(st_date, country_code=country_code)
+        ed_date = get_previous_trading_day(ed_date, country_code=country_code)
+
+        print(f"조회 기간: {st_date} ~ {ed_date}")
+        if(ed_date < st_date):
+            st_date = ed_date
+
+        existing_data = _load_existing_data(csv_filepath)
+
+        blank_dates = []
+        # 여전히 비어있으면
+        if existing_data is not None and not existing_data.empty:
+            # 기존 데이터에서 요청한 날짜 범위의 데이터가 모두 있는지 확인
+            valid_date_list = get_trading_days_in_range(st_date, ed_date, country_code=country_code)
+            for date in valid_date_list:
+                if not _check_date_exists_in_data(existing_data, date):
+                    blank_dates.append(date)
         else:
-            # 기간으로 데이터 가져오기
-            data = stock.history(period=period)
-        
-        # 한국 종목에서 데이터가 없으면 KOSDAQ(.KQ)으로 재시도
-        if data.empty and yf_ticker.endswith('.KS'):
-            yf_ticker = yf_ticker.replace('.KS', '.KQ')
-            stock = yf.Ticker(yf_ticker)
-            
-            if start_date and end_date:
-                data = stock.history(start=start_date, end=end_date)
-            else:
-                data = stock.history(period=period)
-        
-        if data.empty:
-            print(f"데이터를 찾을 수 없습니다: {ticker_code} ({yf_ticker})")
-            return pd.DataFrame()
-        
-        # 인덱스를 컬럼으로 변환 (Date 인덱스를 date 컬럼으로)
-        data = data.reset_index()        
-        print(f"데이터 조회 완료: {ticker_code} ({yf_ticker}) - {len(data)}건")
-        # 컬럼 매핑 (yfinance -> my_app)
-        data = column_mapper.convert_dataframe_columns(data, 'yfi', 'my_app')
-        return data
-        
-    except Exception as e:
-        print(f"get_yfinance_data 오류: {e}")
-        return pd.DataFrame()
+            blank_dates = get_trading_days_in_range(st_date, ed_date, country_code=country_code)
 
-def get_full_ticker(country_codes=['KR'], include_screening_data=True):
+        # 빈 날짜가 있으면 빈 날짜에 대해 API 호출
+        if blank_dates:
+            sst_date = blank_dates[0]  # 첫 번째 빈 날짜로 시작일을 조정
+            eed_date = blank_dates[-1]    # 마지막 빈 날짜로 종료일을 조정
+
+            url = '/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice'
+            tr_id = "FHKST03010100"  # 주식현재가 회원사
+            if(country_code != 'KR'):
+                url = "/uapi/overseas-price/v1/quotations/inquire-daily-chartprice"
+                tr_id = "FHKST03030100"
+                div_code = "N"
+
+            params = {
+                "FID_COND_MRKT_DIV_CODE": div_code, # 시장 분류 코드  J : 주식/ETF/ETN, W: ELW | N : 해외주식
+                "FID_INPUT_ISCD": ticker,           # 종목번호 (6자리), 한국/미국 가능. 일본은 아직 몰루
+                "FID_INPUT_DATE_1": sst_date.strftime("%Y%m%d"),   # 입력 날짜 (시작) 조회 시작일자 (ex. 20220501)
+                "FID_INPUT_DATE_2": eed_date.strftime("%Y%m%d"),   # 입력 날짜 (종료) 조회 종료일자 (ex. 20220530)
+                "FID_PERIOD_DIV_CODE": period_code, # 기간분류코드 D:일봉, W:주봉, M:월봉, Y:년봉
+                "FID_ORG_ADJ_PRC": adj_prc          # 수정주가 0:수정주가 1:원주가
+            }
+
+            print("API에서 새로운 데이터를 가져옵니다...")
+            res = kis_fetcher._url_fetch(url, tr_id, tr_cont, params)
+
+            current_data = pd.DataFrame(res.getBody().output2)  # 기간별 일봉 데이터
+            # Convert KIS column names to my_app format with dual header (Korean + my_app)
+            col_as_is = "kis" if country_code == 'KR' else "kis_ovs"
+            dataframe = column_mapper.convert_dataframe_columns(current_data, as_is=col_as_is, to_be="my_app")
+            # 새로운 데이터를 CSV에 저장 (기존 데이터와 병합))
+            result_data = _merge_and_save_data(existing_data, dataframe, csv_filepath)
+
+            print("API 요청 대기시간을 기다립니다...") 
+            time.sleep(1)
+
+        else:
+            # date 병합
+            print(f"기존 데이터에서 {st_date} ~ {ed_date} 기간의 데이터를 찾았습니다. API 호출을 건너뜁니다.")
+            if existing_data is not None and not existing_data.empty:
+                filtered_data = existing_data[
+                    (existing_data['date'] >= st_date) & 
+                    (existing_data['date'] <= ed_date)
+                ].copy()
+                result_data = pd.concat([result_data, filtered_data], ignore_index=True)
+
+    # 전체 기간 데이터 조회가 끝난 후, 한번에 필터링하여 반환
+    try:
+        # if result_data is None:
+        #     # 만약 result_data가 None이면 빈 DataFrame 반환
+        #     result_data = pd.DataFrame(columns=['date', 'open', 'high', 'low', 'close', 'volume'])
+        # else:
+        result_data['date'] = pd.to_datetime(result_data['date'], format='%Y%m%d', errors='coerce')
+        start_dt = pd.to_datetime(_ori_start_date, format='%Y%m%d')
+        end_dt = pd.to_datetime(_ori_end_date, format='%Y%m%d')
+        result_data = result_data[
+            (result_data['date'] >= start_dt) & 
+            (result_data['date'] <= end_dt)
+        ].copy()
+        
+        # 날짜를 YYYYMMDD 형식으로 변환
+        result_data['date'] = result_data['date'].dt.strftime('%Y%m%d')  # 날짜를 YYYYMMDD 형식으로 변환
+
+        # 모든 열을 값을 보고 적절한 형으로 변환
+        for col in result_data.columns:
+            if col == 'date':
+                continue
+            if result_data[col].dtype == 'object':
+                # 숫자형으로 변환 (오류가 나면 NaN 처리)
+                result_data[col] = pd.to_numeric(result_data[col], errors='coerce')
+
+    except Exception as e:
+        print(f"데이터 필터링 중 오류: {e}")
+
+    return result_data
+
+def get_full_ticker(include_screening_data=True):
     """
-    yfinance를 사용해서 다국가 주요 종목들의 ticker를 가져와서 CSV 파일로 저장
+    pykrx를 사용해서 한국에 상장된 모든 ticker를 가져와서 CSV 파일로 저장
+    스크리닝에 필요한 추가 데이터도 포함 가능
     
     Args:
-        country_codes (list): 수집할 국가 코드 리스트 (예: ['KR', 'US', 'JP'])
         include_screening_data (bool): 스크리닝 데이터 포함 여부
     Returns:
         pd.DataFrame: ticker 정보가 담긴 DataFrame
     """
-    country_suffix = "_".join(sorted(country_codes))
     if include_screening_data:
-        ticker_file_path = os.path.join(DATA_DIR, f"{country_suffix}_ALL_TICKERS_WITH_SCREENING.csv")
+        ticker_file_path = os.path.join(DATA_DIR, "KR_ALL_TICKERS_WITH_SCREENING.csv")
     else:
-        ticker_file_path = os.path.join(DATA_DIR, f"{country_suffix}_ALL_TICKERS.csv")
+        ticker_file_path = os.path.join(DATA_DIR, "KR_ALL_TICKERS.csv")
     
     # 오늘 날짜 기준으로 파일이 있고 최신이면 기존 파일 사용
     if os.path.exists(ticker_file_path):
@@ -754,182 +602,190 @@ def get_full_ticker(country_codes=['KR'], include_screening_data=True):
         except Exception as e:
             print(f"기존 ticker 파일 확인 중 오류: {e}")
     
-    print(f"yfinance에서 {country_codes} 주요 종목 정보를 가져옵니다...")
+    print("pykrx에서 최신 ticker 정보를 가져옵니다...")
     
     try:
-        # 다국가 주요 종목들 (yfinance에서 지원하는 종목들)
-        major_tickers_by_country = {
-            'KR': {
-                # 한국 대형주
-                '005930': {'name': '삼성전자', 'market': 'KOSPI'},
-                '000660': {'name': 'SK하이닉스', 'market': 'KOSPI'},
-                '035420': {'name': 'NAVER', 'market': 'KOSPI'},
-                '005490': {'name': 'POSCO홀딩스', 'market': 'KOSPI'},
-                '068270': {'name': '셀트리온', 'market': 'KOSPI'},
-                '035720': {'name': '카카오', 'market': 'KOSPI'},
-                '051910': {'name': 'LG화학', 'market': 'KOSPI'},
-                '006400': {'name': '삼성SDI', 'market': 'KOSPI'},
-                '028260': {'name': '삼성물산', 'market': 'KOSPI'},
-                '012330': {'name': '현대모비스', 'market': 'KOSPI'},
-                '066570': {'name': 'LG전자', 'market': 'KOSPI'},
-                '003670': {'name': '포스코퓨처엠', 'market': 'KOSPI'},
-                '096770': {'name': 'SK이노베이션', 'market': 'KOSPI'},
-                '000270': {'name': '기아', 'market': 'KOSPI'},
-                '005380': {'name': '현대차', 'market': 'KOSPI'},
-                '207940': {'name': '삼성바이오로직스', 'market': 'KOSPI'},
-                '373220': {'name': 'LG에너지솔루션', 'market': 'KOSPI'},
-                # KOSDAQ 주요 종목
-                '247540': {'name': '에코프로비엠', 'market': 'KOSDAQ'},
-                '086520': {'name': '에코프로', 'market': 'KOSDAQ'},
-                '058470': {'name': '리노공업', 'market': 'KOSDAQ'},
-                '091990': {'name': '셀트리온헬스케어', 'market': 'KOSDAQ'},
-                '196170': {'name': '알테오젠', 'market': 'KOSDAQ'},
-                '039030': {'name': '이오테크닉스', 'market': 'KOSDAQ'},
-                '277810': {'name': '레인보우로보틱스', 'market': 'KOSDAQ'},
-            },
-            'US': {
-                # 미국 대형주
-                'AAPL': {'name': 'Apple Inc.', 'market': 'NASDAQ'},
-                'MSFT': {'name': 'Microsoft Corporation', 'market': 'NASDAQ'},
-                'GOOGL': {'name': 'Alphabet Inc.', 'market': 'NASDAQ'},
-                'AMZN': {'name': 'Amazon.com Inc.', 'market': 'NASDAQ'},
-                'TSLA': {'name': 'Tesla Inc.', 'market': 'NASDAQ'},
-                'META': {'name': 'Meta Platforms Inc.', 'market': 'NASDAQ'},
-                'NVDA': {'name': 'NVIDIA Corporation', 'market': 'NASDAQ'},
-                'JPM': {'name': 'JPMorgan Chase & Co.', 'market': 'NYSE'},
-                'JNJ': {'name': 'Johnson & Johnson', 'market': 'NYSE'},
-                'V': {'name': 'Visa Inc.', 'market': 'NYSE'},
-                'PG': {'name': 'Procter & Gamble Co.', 'market': 'NYSE'},
-                'UNH': {'name': 'UnitedHealth Group Inc.', 'market': 'NYSE'},
-                'HD': {'name': 'Home Depot Inc.', 'market': 'NYSE'},
-                'MA': {'name': 'Mastercard Inc.', 'market': 'NYSE'},
-                'DIS': {'name': 'Walt Disney Co.', 'market': 'NYSE'},
-            },
-            'JP': {
-                # 일본 대형주
-                '7203.T': {'name': 'Toyota Motor Corp', 'market': 'TSE'},
-                '6758.T': {'name': 'Sony Group Corp', 'market': 'TSE'},
-                '9984.T': {'name': 'SoftBank Group Corp', 'market': 'TSE'},
-                '6861.T': {'name': 'Keyence Corp', 'market': 'TSE'},
-                '8306.T': {'name': 'Mitsubishi UFJ Financial Group', 'market': 'TSE'},
-                '7974.T': {'name': 'Nintendo Co Ltd', 'market': 'TSE'},
-                '4063.T': {'name': 'Shin-Etsu Chemical Co Ltd', 'market': 'TSE'},
-                '6098.T': {'name': 'Recruit Holdings Co Ltd', 'market': 'TSE'},
-            }
-        }
+        # 오늘 날짜 (거래일 기준으로 조정)
+        today = datetime.now().strftime("%Y%m%d")
+        # 최근 거래일로 조정 (주말이면 금요일 데이터 사용)
+        try:
+            trading_day = get_previous_trading_day(today)
+        except:
+            trading_day = today
         
         all_tickers = pd.DataFrame()
         
-        for country_code in country_codes:
-            if country_code not in major_tickers_by_country:
-                print(f"국가 코드 {country_code}는 지원되지 않습니다.")
-                continue
-                
-            major_tickers = major_tickers_by_country[country_code]
-            print(f"\n=== {country_code} 종목 수집 중 ===")
+        # 시장별로 데이터 수집
+        markets = ["KOSPI", "KOSDAQ"]
+        
+        for market_name in markets:
+            print(f"{market_name} 종목 조회 중...")
             
-            for ticker_code, info in major_tickers.items():
+            try:
+                # 기본 ticker 리스트
+                tickers = stock.get_market_ticker_list(date=trading_day, market=market_name)
+                
+                market_df = pd.DataFrame({
+                    'ticker': tickers,
+                    'market': market_name
+                })
+                
+                # 종목명 추가
+                names = []
+                for ticker in tickers:
+                    try:
+                        name = stock.get_market_ticker_name(ticker)
+                        names.append(name)
+                    except:
+                        names.append('Unknown')
+                market_df['name'] = names
+                
+                # 스크리닝 데이터 추가
+                if include_screening_data:
+                    print(f"{market_name} 스크리닝 데이터 수집 중...")
+                    
+                    # 시가총액 및 기본 정보
+                    try:
+                        cap_df = stock.get_market_cap(date=trading_day, market=market_name)
+                        if not cap_df.empty:
+                            # ticker를 기준으로 병합
+                            cap_df.reset_index(inplace=True)
+                            cap_df.rename(columns={'티커': 'ticker'}, inplace=True)
+                            
+                            # 컬럼명 영어로 변경
+                            cap_df.rename(columns={
+                                '종목명': 'name_cap',
+                                '시가총액': 'market_cap',
+                                '주식수': 'shares',
+                                '종가': 'close_price'
+                            }, inplace=True)
+                            
+                            # market_df와 병합 (ticker 기준)
+                            market_df = market_df.merge(
+                                cap_df[['ticker', 'market_cap', 'shares', 'close_price']], 
+                                on='ticker', 
+                                how='left'
+                            )
+                    except Exception as e:
+                        print(f"{market_name} 시가총액 데이터 조회 실패: {e}")
+                    
+                    # PER, PBR, DIV 등 추가
+                    try:
+                        fundamental_df = stock.get_market_fundamental(date=trading_day, market=market_name)
+                        if not fundamental_df.empty:
+                            fundamental_df.reset_index(inplace=True)
+                            fundamental_df.rename(columns={'티커': 'ticker'}, inplace=True)
+                            
+                            # 컬럼명 영어로 변경
+                            fundamental_df.rename(columns={
+                                'BPS': 'bps',
+                                'PER': 'per', 
+                                'PBR': 'pbr',
+                                'EPS': 'eps',
+                                'DIV': 'dividend_yield',
+                                'DPS': 'dps'
+                            }, inplace=True)
+                            
+                            # market_df와 병합
+                            fundamental_cols = ['ticker', 'bps', 'per', 'pbr', 'eps', 'dividend_yield', 'dps']
+                            available_cols = ['ticker'] + [col for col in fundamental_cols[1:] if col in fundamental_df.columns]
+                            
+                            market_df = market_df.merge(
+                                fundamental_df[available_cols], 
+                                on='ticker', 
+                                how='left'
+                            )
+                    except Exception as e:
+                        print(f"{market_name} 펀더멘털 데이터 조회 실패: {e}")
+                    
+                    # 추가 데이터: 업종 정보
+                    try:
+                        # 개별 종목의 업종 정보 (시간이 오래 걸릴 수 있음)
+                        sectors = []
+                        print(f"{market_name} 업종 정보 수집 중... (시간이 걸릴 수 있습니다)")
+                        
+                        # 샘플링으로 처리 속도 향상 (전체가 너무 오래 걸리면)
+                        for i, ticker in enumerate(tickers[:50]):  # 처음 50개만 샘플링
+                            try:
+                                # 종목의 업종 정보는 별도 API가 필요할 수 있음
+                                sectors.append('Unknown')  # 일단 Unknown으로 처리
+                            except:
+                                sectors.append('Unknown')
+                            
+                            if i % 10 == 0:
+                                print(f"  진행률: {i+1}/{min(50, len(tickers))}")
+                        
+                        # 나머지는 Unknown으로 채우기
+                        sectors.extend(['Unknown'] * (len(tickers) - len(sectors)))
+                        market_df['sector'] = sectors
+                        
+                    except Exception as e:
+                        print(f"{market_name} 업종 정보 수집 실패: {e}")
+                        market_df['sector'] = 'Unknown'
+                
+                all_tickers = pd.concat([all_tickers, market_df], ignore_index=True)
+                print(f"{market_name}: {len(market_df)}개 종목 완료")
+                
+            except Exception as e:
+                print(f"{market_name} 데이터 수집 실패: {e}")
+                continue
+        
+        # KONEX 추가 (선택적)
+        try:
+            print("KONEX 종목 조회 중...")
+            konex_tickers = stock.get_market_ticker_list(date=trading_day, market="KONEX")
+            konex_df = pd.DataFrame({
+                'ticker': konex_tickers,
+                'market': 'KONEX'
+            })
+            
+            # 종목명 추가
+            konex_names = []
+            for ticker in konex_tickers:
                 try:
-                    # yfinance 티커 형식 결정
-                    if country_code == 'KR':
-                        yf_ticker = f"{ticker_code}.KS" if info['market'] == 'KOSPI' else f"{ticker_code}.KQ"
-                    else:
-                        yf_ticker = ticker_code
-                    
-                    ticker_data = {
-                        'ticker': ticker_code,
-                        'yf_ticker': yf_ticker,
-                        'name': info['name'],
-                        'market': info['market'],
-                        'country_code': country_code
-                    }
-                    
-                    # 스크리닝 데이터 추가
-                    if include_screening_data:
-                        try:
-                            print(f"{info['name']} ({ticker_code}) 데이터 수집 중...")
-                            yf_stock = yf.Ticker(yf_ticker)
-                            
-                            # 기본 정보 가져오기
-                            info_data = yf_stock.info
-                            
-                            if info_data:
-                                ticker_data.update({
-                                    'market_cap': info_data.get('marketCap'),
-                                    'enterprise_value': info_data.get('enterpriseValue'),
-                                    'pe_ratio': info_data.get('trailingPE'),
-                                    'pb_ratio': info_data.get('priceToBook'),
-                                    'dividend_yield': info_data.get('dividendYield'),
-                                    'beta': info_data.get('beta'),
-                                    'eps': info_data.get('trailingEps'),
-                                    'book_value': info_data.get('bookValue'),
-                                    'price_to_sales': info_data.get('priceToSalesTrailing12Months'),
-                                    'sector': info_data.get('sector'),
-                                    'industry': info_data.get('industry'),
-                                    'website': info_data.get('website'),
-                                    'business_summary': info_data.get('longBusinessSummary'),
-                                    'full_time_employees': info_data.get('fullTimeEmployees'),
-                                    'currency': info_data.get('currency'),
-                                })
-                                
-                                # 최근 가격 정보
-                                hist = yf_stock.history(period="5d")
-                                if not hist.empty:
-                                    ticker_data.update({
-                                        'current_price': hist['Close'].iloc[-1],
-                                        'volume': hist['Volume'].iloc[-1],
-                                        'high_52w': info_data.get('fiftyTwoWeekHigh'),
-                                        'low_52w': info_data.get('fiftyTwoWeekLow'),
-                                    })
-                            
-                            time.sleep(0.3)  # API 호출 제한 고려
-                            
-                        except Exception as e:
-                            print(f"{ticker_code} 스크리닝 데이터 수집 실패: {e}")
-                            # 기본값으로 채우기
-                            if include_screening_data:
-                                for col in ['market_cap', 'enterprise_value', 'pe_ratio', 'pb_ratio', 
-                                           'dividend_yield', 'beta', 'eps', 'book_value', 'price_to_sales',
-                                           'sector', 'industry', 'website', 'business_summary', 
-                                           'full_time_employees', 'current_price', 'volume', 'high_52w', 'low_52w', 'currency']:
-                                    if col not in ticker_data:
-                                        ticker_data[col] = None
-                    
-                    # DataFrame에 추가
-                    ticker_df = pd.DataFrame([ticker_data])
-                    all_tickers = pd.concat([all_tickers, ticker_df], ignore_index=True)
-                    
-                except Exception as e:
-                    print(f"{ticker_code} 데이터 수집 실패: {e}")
-                    continue
+                    name = stock.get_market_ticker_name(ticker)
+                    konex_names.append(name)
+                except:
+                    konex_names.append('Unknown')
+            konex_df['name'] = konex_names
+            
+            # KONEX는 기본 정보만 (스크리닝 데이터는 제한적)
+            if include_screening_data:
+                for col in ['market_cap', 'shares', 'close_price', 'bps', 'per', 'pbr', 'eps', 'dividend_yield', 'dps', 'sector']:
+                    if col not in konex_df.columns:
+                        konex_df[col] = None
+            
+            all_tickers = pd.concat([all_tickers, konex_df], ignore_index=True)
+            print(f"KONEX: {len(konex_df)}개 종목 완료")
+            
+        except Exception as e:
+            print(f"KONEX 데이터 조회 실패 (무시하고 계속): {e}")
         
         # 업데이트 날짜 추가
-        today = datetime.now().strftime("%Y%m%d")
-        all_tickers['updated_date'] = today
+        # all_tickers['updated_date'] = today
+        all_tickers['trading_date'] = trading_day
         
         # 데이터 타입 정리
         if include_screening_data:
             # 숫자 컬럼들을 적절한 타입으로 변환
-            numeric_cols = ['market_cap', 'enterprise_value', 'pe_ratio', 'pb_ratio', 
-                           'dividend_yield', 'beta', 'eps', 'book_value', 'price_to_sales',
-                           'current_price', 'volume', 'high_52w', 'low_52w', 'full_time_employees']
+            numeric_cols = ['market_cap', 'shares', 'close_price', 'per', 'pbr', 'eps', 'bps', 'dividend_yield', 'dps']
             for col in numeric_cols:
                 if col in all_tickers.columns:
                     all_tickers[col] = pd.to_numeric(all_tickers[col], errors='coerce')
         
         # CSV 파일로 저장
-        os.makedirs(DATA_DIR, exist_ok=True)
+        _ensure_data_directory()
         all_tickers.to_csv(ticker_file_path, index=False, encoding='utf-8-sig')
         
         print(f"\n=== 수집 완료 ===")
         print(f"총 {len(all_tickers)}개의 ticker가 저장되었습니다.")
         
-        country_counts = all_tickers['country_code'].value_counts()
-        for country, count in country_counts.items():
-            print(f"{country}: {count}개")
+        market_counts = all_tickers['market'].value_counts()
+        for market, count in market_counts.items():
+            print(f"{market}: {count}개")
         
         if include_screening_data:
-            print(f"\n스크리닝 데이터 컬럼: {[col for col in all_tickers.columns if col not in ['ticker', 'yf_ticker', 'name', 'market', 'country_code', 'updated_date']]}")
+            print(f"\n스크리닝 데이터 컬럼: {[col for col in all_tickers.columns if col not in ['ticker', 'name', 'market', 'updated_date', 'trading_date']]}")
         
         print(f"파일 저장 위치: {ticker_file_path}")
         
@@ -948,37 +804,256 @@ def get_full_ticker(country_codes=['KR'], include_screening_data=True):
 
 
 ##############################################################################################
+# data processing api
+##############################################################################################
+PROCESSED_DATA_DIR = os.path.join(DATA_DIR, "processed")
+
+
+##############################################################################################
 # 처리된 데이터 저장 디렉토리 생성
 ##############################################################################################
-def extract_country_code_from_ticker(ticker):
+def _ensure_processed_data_directory():
+    """처리된 데이터 저장 디렉토리가 없으면 생성"""
+    if not os.path.exists(PROCESSED_DATA_DIR):
+        os.makedirs(PROCESSED_DATA_DIR)
+
+###############################################################################################
+# daily data를 이용해서 계산할 지표 전부 처리
+###############################################################################################
+def get_processed_data_D(
+        itm_no="",      # 종목번호 (6자리) ETN의 경우, Q로 시작 (EX. Q500001)
+        start_date=None, end_date=None,
+        short_window=12, long_window=26, signal_window=9,
+        center_window=20
+    ):
+    period_code = "D"  # 기간코드 (일봉) 
     """
-    티커에서 국가 코드를 추출
+    주식 데이터를 가져와서 MACD 지표와 rolling center를 계산하여 저장
     
     Args:
-        ticker (str): 주식 티커 (예: '005930', 'AAPL', '7203.T', '0700.HK')
+        itm_no (str): 종목번호 (6자리)
+        start_date (str): 시작날짜 YYYYMMDD
+        end_date (str): 종료날짜 YYYYMMDD  
+        short_window (int): MACD 단기 이동평균 기간 (기본: 12)
+        long_window (int): MACD 장기 이동평균 기간 (기본: 26)
+        signal_window (int): MACD 신호선 기간 (기본: 9)
+        center_window (int): rolling center 기간 (기본: 20)
     
     Returns:
-        str: 국가 코드 (예: 'KR', 'US', 'JP', 'HK')
+        pd.DataFrame: 처리된 데이터프레임
     """
-    if '.' in ticker:
-        suffix = ticker.split('.')[-1].upper()
-        suffix_to_country = {
-            'KS': 'KR',      # 한국 KOSPI
-            'KQ': 'KR',      # 한국 KOSDAQ
-            'T': 'JP',       # 일본 도쿄증권거래소
-            'HK': 'HK',      # 홍콩
-            'SS': 'CN',      # 중국 상하이
-            'SZ': 'CN',      # 중국 선전
-            'L': 'GB',       # 영국 런던
-            'TO': 'CA',      # 캐나다 토론토
-            'AX': 'AU',      # 호주
-            'F': 'DE',       # 독일 프랑크푸르트
-            'PA': 'FR',      # 프랑스 파리
-        }
-        return suffix_to_country.get(suffix, 'US')  # 기본값 미국
-    else:
-        # 한국 코드 (6자리 숫자)인지 확인
-        if ticker.isdigit() and len(ticker) == 6:
-            return 'KR'
-        else:
-            return 'US'  # 기본값 미국
+    start_date, end_date = get_valid_date_range(start_date, end_date, day_padding = 14)
+    
+    # 처리된 데이터 파일명 생성 규칙: {종목번호}_macd_{기간코드}.csv
+    processed_filename = f"{itm_no}_processed_{period_code}.csv"
+    processed_filepath = os.path.join(PROCESSED_DATA_DIR, processed_filename)
+    
+    # 캐시된 처리 데이터가 있는지 확인
+    if os.path.exists(processed_filepath):
+        try:
+            existing_processed = pd.read_csv(processed_filepath)
+            # 요청한 날짜 범위가 이미 처리되어 있는지 확인
+                
+            if not existing_processed.empty and 'date' in existing_processed.columns:
+                existing_processed['date'] = pd.to_datetime(existing_processed['date'], format='%Y%m%d', errors='coerce')
+                
+                if start_date and end_date:
+                    start_dt = pd.to_datetime(start_date, format='%Y%m%d')
+                    end_dt = pd.to_datetime(end_date, format='%Y%m%d')
+                    
+                    # 요청한 범위의 데이터가 모두 있는지 확인 -> TODO : 이부분 로직 바꿔야함.
+                    filtered_existing = existing_processed[
+                        (existing_processed['date'] >= start_dt) & 
+                        (existing_processed['date'] <= end_dt)
+                    ]
+                    print(f"요청한 날짜 범위: {start_dt} ~ {end_dt}")
+                    print(f"캐시된 데이터에서 필터링된 행 수: {(filtered_existing)}")
+                    
+                    if len(filtered_existing) > 0:
+                        print(f"캐시된 데이터를 사용합니다: {processed_filename}")
+                        # 날짜를 다시 문자열로 변환
+                        filtered_existing['date'] = filtered_existing['date'].dt.strftime('%Y%m%d')
+                        return filtered_existing
+        except Exception as e:
+            print(f"기존 데이터 확인 중 오류: {e}")
+
+    # processed_filepath가 존재하지 않거나 유효한 데이터가 없으면 새로 만들기
+    try:
+        # get_itempricechart_2에서 원시 데이터 가져오기
+        print(f"getting raw stock data '{itm_no}' | '{period_code}' ...")
+        raw_data = get_itempricechart_2(
+            itm_no=itm_no,
+            start_date=start_date,
+            end_date=end_date,
+            period_code=period_code
+        )
+        
+        if raw_data is None or raw_data.empty:
+            print("원시 데이터를 가져올 수 없습니다.")
+            return pd.DataFrame()
+        
+        # date, close 컬럼만 유지
+        if 'date' not in raw_data.columns or 'close' not in raw_data.columns:
+            print(f"필수 컬럼이 없습니다. 사용 가능한 컬럼: {raw_data.columns.tolist()}")
+            return pd.DataFrame()
+        
+        # 필요한 컬럼만 선택하고 복사본 생성
+        processed_data = raw_data[['date', 'close']].copy()
+
+        # 날짜 기준으로 정렬
+        processed_data['date'] = pd.to_datetime(processed_data['date'], format='%Y%m%d', errors='coerce')
+        processed_data = processed_data.sort_values('date').reset_index(drop=True)
+
+        # close를 숫자로 변환
+        processed_data['close'] = pd.to_numeric(processed_data['close'], errors='coerce')
+        # 결측값 제거
+        processed_data = processed_data.dropna()
+        
+        if len(processed_data) < max(long_window, center_window):
+            print(f"데이터가 부족합니다. 최소 {max(long_window, center_window)}일 이상의 데이터가 필요합니다.")
+            return pd.DataFrame()
+                
+        print("PROCESSING ...")
+
+        print("- Rolling center 계산 중...")
+        processed_data['center'] = processed_data['close'].rolling(window=center_window).mean()
+        processed_data['upper_band'] = processed_data['center'] + 2 * processed_data['close'].rolling(window=center_window).std()
+        processed_data['lower_band'] = processed_data['center'] - 2 * processed_data['close'].rolling(window=center_window).std()
+
+        # MACD 계산
+        # EMA 계산
+        exp1 = processed_data['close'].ewm(span=short_window).mean()  # 12일 EMA
+        exp2 = processed_data['close'].ewm(span=long_window).mean()   # 26일 EMA
+        
+        # MACD Line
+        processed_data['macd'] = exp1 - exp2
+        
+        # Signal Line (MACD의 9일 EMA)
+        processed_data['macd_signal'] = processed_data['macd'].ewm(span=signal_window).mean()
+        
+        # MACD Histogram
+        processed_data['macd_histogram'] = processed_data['macd'] - processed_data['macd_signal']
+
+        # 추가적인 기술적 지표들
+        processed_data['sma_short'] = processed_data['close'].rolling(window=short_window).mean()
+        processed_data['sma_long'] = processed_data['close'].rolling(window=long_window).mean()
+
+        # 날짜를 다시 문자열로 변환 (저장을 위해)
+        processed_data['date'] = processed_data['date'].dt.strftime('%Y%m%d')
+
+        # 처리된 데이터 저장
+        _ensure_processed_data_directory()
+        processed_data.to_csv(processed_filepath, index=False, encoding='utf-8-sig')
+        
+        print(f"MACD 데이터 처리 완료: {processed_filename}")
+        print(f"처리된 데이터 행 수: {len(processed_data)}")
+        print(f"컬럼: {processed_data.columns.tolist()}")
+        print(f"저장 위치: {processed_filepath}")
+        
+        # 요청한 날짜 범위로 필터링
+        if start_date and end_date:
+            processed_data['date_dt'] = pd.to_datetime(processed_data['date'], format='%Y%m%d')
+            start_dt = pd.to_datetime(start_date, format='%Y%m%d')
+            end_dt = pd.to_datetime(end_date, format='%Y%m%d')
+            
+            filtered_data = processed_data[
+                (processed_data['date_dt'] >= start_dt) & 
+                (processed_data['date_dt'] <= end_dt)
+            ].drop('date_dt', axis=1).copy()
+            
+            return filtered_data
+        
+        return processed_data
+        
+    except Exception as e:
+        print(f"MACD 데이터 처리 실패: {e}")
+        return pd.DataFrame()
+    
+def get_processed_data_M(
+        itm_no="",      # 종목번호 (6자리) ETN의 경우, Q로 시작 (EX. Q500001)
+        start_date=None, end_date=None,
+    ):
+    period_code = "M"  # 기간코드 (월봉)
+
+    """
+    월봉 데이터를 가져와서 처리된 데이터를 반환합니다.
+    Args:
+        itm_no (str): 종목번호 (6자리)
+        start_date (str): 시작날짜 YYYYMMDD
+        end_date (str): 종료날짜 YYYYMMDD
+    """
+
+    start_date, end_date = get_valid_date_range(start_date, end_date, day_padding=14)
+    # start_date를 1년 전으로 땡김
+    start_date = get_offset_date(start_date, -365)
+
+    processed_filename = f"{itm_no}_processed_{period_code}.csv"
+    processed_filepath = os.path.join(PROCESSED_DATA_DIR, processed_filename)
+
+    if os.path.exists(processed_filepath):
+        try:
+            existing_processed = pd.read_csv(processed_filepath)
+            if not existing_processed.empty and 'date' in existing_processed.columns:
+                existing_processed['date'] = pd.to_datetime(existing_processed['date'], format='%Y%m%d', errors='coerce')
+                
+                if start_date and end_date:
+                    start_dt = pd.to_datetime(start_date, format='%Y%m%d')
+                    end_dt = pd.to_datetime(end_date, format='%Y%m%d')
+                    
+                    # 요청한 범위의 데이터가 모두 있는지 확인 -> TODO : 이부분 로직 바꿔야함.
+                    filtered_existing = existing_processed[
+                        (existing_processed['date'] >= start_dt) & 
+                        (existing_processed['date'] <= end_dt)
+                    ]
+                    
+                    if len(filtered_existing) > 0:
+                        print(f"캐시된 월봉 데이터를 사용합니다: {processed_filename}")
+                        filtered_existing['date'] = filtered_existing['date'].dt.strftime('%Y%m%d')
+                        return filtered_existing
+        except Exception as e:
+            print(f"기존 월봉 데이터 확인 중 오류: {e}")
+
+    try:
+        print(f"getting raw stock data '{itm_no}' | '{period_code}' ...")
+
+        raw_data = get_itempricechart_2(
+            itm_no=itm_no,
+            start_date=start_date,
+            end_date=end_date,
+            period_code=period_code
+        )
+        
+        if raw_data is None or raw_data.empty:
+            print("원시 월봉 데이터를 가져올 수 없습니다.")
+            return pd.DataFrame()
+
+        # date, close 컬럼만 유지
+        if 'date' not in raw_data.columns or 'close' not in raw_data.columns:
+            print(f"필수 컬럼이 없습니다. 사용 가능한 컬럼: {raw_data.columns.tolist()}")
+            return pd.DataFrame()
+
+        # 필요한 컬럼만 선택하고 복사본 생성
+        processed_data = raw_data[['date', 'close']].copy()
+
+        # 날짜 기준으로 정렬
+        processed_data['date'] = pd.to_datetime(processed_data['date'], format='%Y%m%d', errors='coerce')
+        processed_data = processed_data.sort_values('date').reset_index(drop=True)
+
+        # close를 숫자로 변환
+        processed_data['close'] = pd.to_numeric(processed_data['close'], errors='coerce')
+        # 결측값 제거
+        processed_data = processed_data.dropna()
+
+        print("PROCESSING ...")
+
+        processed_data['BF_1M_close'] = processed_data['close'].shift(1)  # 이전 월봉 종가
+        processed_data['BF_12M_close'] = processed_data['close'].shift(12)  # 12개월 전 종가
+        
+        # processed_data['trade'] = 
+
+        print(processed_data)
+        return processed_data
+
+    except Exception as e:
+        print(f"월봉 원시 데이터 가져오기 실패: {e}")
+        return pd.DataFrame()

@@ -1,10 +1,13 @@
 # 키,토큰 관리 모듈
 
+'''
+    TODO
+    - 실시간 거래를 위한 WebsSocket 방식이 구현되어야 함.
+'''
+
 import os
 import json
 import requests
-import copy
-import yaml
 from datetime import datetime, timedelta
 
 # 파일 읽어오기

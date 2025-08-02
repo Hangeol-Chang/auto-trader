@@ -22,6 +22,7 @@ _base_headers = {
     "appsecret": ""
 }
 
+global keys
 def _getBaseHeader():
     keys = token_manager.get_keys()
     _base_headers["authorization"] = f"Bearer {keys['ACCESS_TOKEN']}"
@@ -113,6 +114,8 @@ def _url_fetch(api_url, ptr_id, tr_cont, params, appendHeaders=None, postFlag=Fa
     headers["custtype"] = "P"  # 일반(개인고객,법인고객) "P", 제휴사 "B"
     headers["tr_cont"] = tr_cont  # 트랜젝션 TR id
 
+# {'FID_COND_MRKT_DIV_CODE': 'N', 'FID_INPUT_ISCD': 'AAPL', 'FID_INPUT_DATE_1': '20230103', 'FID_INPUT_DATE_2': '20230410', 'FID_PERIOD_DIV_CODE': 'D'}
+# {'FID_COND_MRKT_DIV_CODE': 'N', 'FID_INPUT_ISCD': 'AAPL', 'FID_INPUT_DATE_1': '20230101', 'FID_INPUT_DATE_2': '20231231', 'FID_PERIOD_DIV_CODE': 'D'}
     if appendHeaders is not None:
         if len(appendHeaders) > 0:
             for x in appendHeaders.keys():

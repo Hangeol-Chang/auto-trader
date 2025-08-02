@@ -81,6 +81,47 @@
             "revaluation_reason": "revl_issu_reas"
         }
     },
+    "kis_ovs": {
+        "type": "raw",
+        "table": {
+            "current_price": "ovrs_nmix_prpr",
+            "previous_close": "ovrs_nmix_prdy_clpr",
+            "open": "ovrs_nmix_oprc",
+            "high": "ovrs_nmix_hgpr",
+            "low": "ovrs_nmix_lwpr",
+            "previous_open": "ovrs_nmix_prdy_oprc",
+            "previous_high": "ovrs_nmix_prdy_hgpr",
+            "previous_low": "ovrs_nmix_prdy_lwpr",
+            "price_change": "ovrs_nmix_prdy_vrss",
+            "price_change_sign": "ovrs_nmix_prdy_vrss_sign",
+            "price_change_rate": "ovrs_nmix_prdy_ctrt",
+            "volume": "acml_vol",
+            "trade_amount": "ovrs_nmix_acml_tr_pbmn",
+            "previous_volume": "ovrs_nmix_prdy_vol",
+            "volume_change": "ovrs_nmix_prdy_vrss_vol",
+            "volume_turnover_rate": "ovrs_nmix_vol_tnrt",
+            "ask_price": "ovrs_nmix_askp",
+            "bid_price": "ovrs_nmix_bidp",
+            "stock_name": "ovrs_item_name",
+            "stock_code": "ovrs_item_code",
+            "upper_limit": "ovrs_nmix_mxpr",
+            "lower_limit": "ovrs_nmix_llam",
+            "face_value": "ovrs_nmix_fcam",
+            "listed_shares": "ovrs_lstn_stcn",
+            "capital": "ovrs_cpfn",
+            "market_cap": "ovrs_hts_avls",
+            "per": "ovrs_per",
+            "eps": "ovrs_eps",
+            "pbr": "ovrs_pbr",
+            "loan_balance_rate": "ovrs_loan_rmnd_rate",
+            "date": "stck_bsop_date",
+            "close": "ovrs_nmix_prpr",
+            "rights_code": "ovrs_flng_cls_code",
+            "split_ratio": "ovrs_prtt_rate",
+            "adjusted_price_flag": "adjusted_price_flag",
+            "revaluation_reason": "ovrs_revl_issu_reas"
+        }
+    },
     "pykrx": {
         "type": "raw",
         "table": {
