@@ -104,7 +104,7 @@ async function executeBacktest() {
         } else {
             // 오류 결과 표시
             resultDiv.innerHTML = `
-                <div style="background: #f8d7da; padding: 15px; border-radius: 5px; color: #721c24;">
+                <div style="background: #f8d7da; padding: 4px; border-radius: 5px; color: #721c24;">
                     <h3>오류</h3>
                     <p>${data.error || '알 수 없는 오류가 발생했습니다.'}</p>
                 </div>
@@ -749,60 +749,6 @@ function drawStockChart(stockData, ticker) {
                     oversoldEntryValues.push(rsi[index]);
                 }
             });
-
-            // if (oversoldEntryIndices.length > 0) {
-            //     rsiTraces.push({
-            //         x: oversoldEntryIndices,
-            //         y: oversoldEntryValues,
-            //         type: 'scatter',
-            //         mode: 'markers',
-            //         name: 'RSI 과매도 진입',
-            //         marker: {
-            //             symbol: 'triangle-down',
-            //             size: 10,
-            //             color: '#ff4444',
-            //             line: { width: 2, color: '#ffffff' }
-            //         },
-            //         hovertemplate: '<b>RSI 과매도 진입</b><br>' +
-            //                        '날짜: %{text}<br>' +
-            //                        'RSI: %{y:.1f}<br>' +
-            //                        '<extra></extra>',
-            //         text: oversoldEntryIndices.map(i => dates[i]),
-            //         showlegend: true
-            //     });
-            // }
-
-            // // RSI 과매도 탈출 신호
-            // const oversoldExitIndices = [];
-            // const oversoldExitValues = [];
-            // rsiOversoldExit.forEach((isExit, index) => {
-            //     if (isExit && rsi[index] !== null) {
-            //         oversoldExitIndices.push(index);
-            //         oversoldExitValues.push(rsi[index]);
-            //     }
-            // });
-
-            // if (oversoldExitIndices.length > 0) {
-            //     rsiTraces.push({
-            //         x: oversoldExitIndices,
-            //         y: oversoldExitValues,
-            //         type: 'scatter',
-            //         mode: 'markers',
-            //         name: 'RSI 과매도 탈출',
-            //         marker: {
-            //             symbol: 'triangle-up',
-            //             size: 10,
-            //             color: '#44ff44',
-            //             line: { width: 2, color: '#ffffff' }
-            //         },
-            //         hovertemplate: '<b>RSI 과매도 탈출</b><br>' +
-            //                        '날짜: %{text}<br>' +
-            //                        'RSI: %{y:.1f}<br>' +
-            //                        '<extra></extra>',
-            //         text: oversoldExitIndices.map(i => dates[i]),
-            //         showlegend: true
-            //     });
-            // }
 
             // RSI 과매수 진입 신호
             const overboughtEntryIndices = [];

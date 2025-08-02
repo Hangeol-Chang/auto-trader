@@ -15,6 +15,8 @@ class MA_strategy(STRATEGY):
         self.ticker = ticker
         self.dataFrame = dataFrame.copy()  # 원본 데이터 보호
         
+        print(self.dataFrame)
+
         # 중복된 컬럼명 확인 및 제거
         if self.dataFrame.columns.duplicated().any():
             print("중복된 컬럼명 발견, 제거합니다.")

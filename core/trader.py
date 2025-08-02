@@ -85,40 +85,34 @@ class Trader:
         # start_date부터 end_date까지를
         print(f"{start_date} ~ {end_date} 기간의 데이터를 가져옵니다.")
         dataFrame = stock_data_manager.get_itempricechart_2(
-            itm_no=ticker,
+            ticker=ticker,
             start_date=start_date, end_date=end_date
         )
         data = self.strategy.set_data(ticker, dataFrame)
         print(f"Data for {ticker} set with {len(self.strategy.dataFrame)} records")
-        print(data)
         
         return data.to_json(orient='records')
 
     def run_backtest(self, ticker, start_date, end_date):
         print("\n============= Backtest Start =============")
         print(f"Running backtest for {ticker} from {start_date} to {end_date}...")
+        country_code = stock_data_manager.get_country_code(ticker)
 
-        now = stock_data_manager.get_next_trading_day(start_date, ticker=ticker)
+        now = stock_data_manager.get_next_trading_day(start_date, country_code=country_code)
 
         # trade_info = pd.DataFrame()
         while now <= end_date:
-            res = self.strategy.run(target_time=now)
-            # res.print()
-            # trade_info = pd.concat([trade_info, pd.DataFrame([{
-            #     'timestamp': res.timestamp,
-            #     'signal_type': res.signal_type,
-            #     'target_time': res.target_time,
-            #     'ticker': res.ticker,
-            #     'position_size': res.position_size,
-            #     'current_price': res.current_price,
-            #     'quantity': res.quantity
-            # }])], ignore_index=True)
+            try:
+                res = self.strategy.run(target_time=now)    # 전략에 따른 판단.
+                self.orderer.place_order(order_info=res)    # 거래 수행
 
-            # 거래를 수행.
-            self.orderer.place_order(order_info=res)
-            # 신호에 따라 매매 로직 수행
+            except Exception as e:
+                # 날짜가 없는 에러가 종종 남
+                print(f"[오류] {e}")
+
             now = stock_data_manager.get_offset_date(now, 1)  # 다음 거래일로 이동
-            now = stock_data_manager.get_next_trading_day(now, ticker=ticker)
+            now = stock_data_manager.get_next_trading_day(now, country_code=country_code)
+
 
         # print(trade_info)
         trade_result = self.orderer.end_test()

@@ -53,7 +53,7 @@ def get_stock_data():
         
         # 주식 데이터 가져오기
         data = stock_data_manager.get_processed_data_D(
-            itm_no=stock_code,
+            ticker=stock_code,
             start_date=start_date,
             end_date=end_date
         )

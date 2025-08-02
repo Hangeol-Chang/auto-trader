@@ -46,7 +46,7 @@ COUNTRY_REPRESENTATIVE_TICKERS = {
 ##############################################################################################
 # 날짜 관련 로직
 ##############################################################################################
-def get_country_code_from_ticker(ticker: str) -> str:
+def get_country_code(ticker: str) -> str:
     ticker = ticker.upper().strip()
 
     # 접미사 기반 우선 판별
@@ -349,15 +349,18 @@ def _merge_and_save_data(existing_data, new_data, csv_filepath, date_column='dat
     기존 데이터와 새 데이터를 병합하여 저장 (개선된 버전)
     - 날짜를 문자열로 다루어 안정성 확보
     """
-    # 두 데이터프레임 모두 날짜 컬럼을 문자열로 통일
-    if existing_data is not None:
-        existing_data[date_column] = existing_data[date_column].astype(str)
-    new_data[date_column] = new_data[date_column].astype(str)
+    # date가 datetime으로 되어있으면 YYYYMMDD로 변환
+    if date_column in new_data.columns:
+        if pd.api.types.is_datetime64_any_dtype(new_data[date_column]):
+            new_data[date_column] = new_data[date_column].dt.strftime('%Y%m%d')
 
     if existing_data is None or existing_data.empty:
         _save_data_to_csv(new_data, csv_filepath)
         return new_data
 
+    if date_column in existing_data.columns:
+        if pd.api.types.is_datetime64_any_dtype(existing_data[date_column]):
+            existing_data[date_column] = existing_data[date_column].dt.strftime('%Y%m%d')
     try:
         combined_data = pd.concat([existing_data, new_data], ignore_index=True)
         # 날짜 기준으로 중복 제거 (API로 새로 받은 데이터를 우선)
@@ -422,7 +425,7 @@ def get_itempricechart_1(
     adj_prc="0",    # 수정주가 0:수정주가 1:원주가
     dataframe=None
 ) :
-    country_code = get_country_code_from_ticker(itm_no)
+    country_code = get_country_code(itm_no)
     
     start_date, end_date = get_valid_date_range(start_date, end_date, day_padding=14)
     start_date = get_next_trading_day(start_date, country_code=country_code)
@@ -463,7 +466,7 @@ def get_itempricechart_2(
         period_code="D", adj_prc="0", dataframe=None
 ):  
     # 국내, 해외 종합 지수조회
-    country_code = get_country_code_from_ticker(ticker)
+    country_code = get_country_code(ticker)
     
     # CSV 파일명 생성 (API 이름에 output2를 추가해 구분)
     csv_filename = _generate_csv_filename(ticker, "itemchartprice_history", period_code)
@@ -476,6 +479,7 @@ def get_itempricechart_2(
     _ori_end_date = end_date
 
     date_list = split_dates_by_days(start_date, end_date, days=100)
+    # print(date_list)
 
     result_data = None
     for st_date, ed_date in date_list:
@@ -529,26 +533,20 @@ def get_itempricechart_2(
             dataframe = column_mapper.convert_dataframe_columns(current_data, as_is=col_as_is, to_be="my_app")
             # 새로운 데이터를 CSV에 저장 (기존 데이터와 병합))
             result_data = _merge_and_save_data(existing_data, dataframe, csv_filepath)
-
             print("API 요청 대기시간을 기다립니다...") 
             time.sleep(1)
 
         else:
             # date 병합
             print(f"기존 데이터에서 {st_date} ~ {ed_date} 기간의 데이터를 찾았습니다. API 호출을 건너뜁니다.")
-            if existing_data is not None and not existing_data.empty:
-                filtered_data = existing_data[
-                    (existing_data['date'] >= st_date) & 
-                    (existing_data['date'] <= ed_date)
-                ].copy()
-                result_data = pd.concat([result_data, filtered_data], ignore_index=True)
 
+            filtered_data = existing_data[
+                (existing_data['date'] >= st_date) & 
+                (existing_data['date'] <= ed_date)
+            ].copy()
+            result_data = pd.concat([result_data, filtered_data], ignore_index=True)
     # 전체 기간 데이터 조회가 끝난 후, 한번에 필터링하여 반환
     try:
-        # if result_data is None:
-        #     # 만약 result_data가 None이면 빈 DataFrame 반환
-        #     result_data = pd.DataFrame(columns=['date', 'open', 'high', 'low', 'close', 'volume'])
-        # else:
         result_data['date'] = pd.to_datetime(result_data['date'], format='%Y%m%d', errors='coerce')
         start_dt = pd.to_datetime(_ori_start_date, format='%Y%m%d')
         end_dt = pd.to_datetime(_ori_end_date, format='%Y%m%d')

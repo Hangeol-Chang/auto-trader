@@ -6,6 +6,81 @@ html, body {
     font-family: Arial, sans-serif;
 }
 
+#body {
+    display: flex;
+}
+
+@media (max-width: 768px) {
+    #body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+}
+
+button {
+    padding: 8px 12px;
+    background-color: #ADE;
+    border: 1px solid #88C;
+    color: black;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+button:hover {
+    background-color: #8BC;
+}
+button:active {
+    background-color: #7AB;
+}
+
+
+.main-controller {
+    display: flex;
+    flex-direction: column;
+    justify-content: start;
+    align-items: flex-start;
+    
+    /* 세로 스크롤 설정 */
+    max-height: calc(100vh - 80px); /* header 높이를 고려한 최대 높이 */
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* 태블릿 크기 (768px 이하) */
+@media (max-width: 768px) {
+    .main-controller {
+        flex-direction: row;
+        justify-content: start;
+        width: 100%;
+        
+        /* 가로 스크롤 설정 */
+        max-width: calc(100vw - 30px); /* padding을 고려한 최대 너비 */
+        max-height: none;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap; /* 요소들이 한 줄로 배치되도록 */
+    }
+}
+
+.unit {
+    display: flex;
+    flex-direction: column;
+    /* align-items: center; */
+    padding: 16px;
+    margin: 8px;
+    /* justify-content: center; */
+    border: 1px solid #444;
+    background-color: #222;
+    box-shadow: 0 2px 4px rgba(120, 120, 120, 0.5);
+    border-radius: 8px;
+    min-width: 200px;
+    align-self: stretch;
+    /* flex-grow: 1; */
+    width: auto;
+    flex-shrink: 0; /* 스크롤 시 크기가 줄어들지 않도록 */
+}
+
 #header {
     display: flex;  
     align-items: center;
@@ -35,7 +110,7 @@ nav {
 
 h1, h2 {
     font-size: 24px;
-    margin: 0;
+    margin: 0px 0px 10px 0px;
 }
 
 p {

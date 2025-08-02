@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='./css/style.css') }}">
     <!-- Plotly.js 라이브러리 추가 -->
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <!-- Input Field 컴포넌트 추가 -->
+    <script src="{{ url_for('static', filename='./components/inputField.js') }}"></script>
 </head>
 <body>
     <div id="header">
@@ -18,58 +20,102 @@
     </div>
 
     <div id="body">
-        <div class="unit">
-            <h2>
-                Stock Unit
-            </h2>
-            <label for="ticker-searchType">Type</label>
-            <select id="ticker-searchType">
-                <option value="name">Name</option>
-                <option value="ticker">Ticker</option>
-            </select>
-            <br>
-            <label for="ticker-input">Ticker:</label>
-            <input type="text" id="ticker-input" placeholder="Ticker (예: 005930)" value="NAVER">
-            <button id="ticker-btn" onclick="findTicker()">Find Ticker</button>
-
-            <div id="ticker-result"></div>
-
-            <hr>
-
-            <h2>
-                BackTest Unit
-            </h2>
-            
-            <label for="ticker">Ticker:</label>
-            <input type="text" placeholder="Ticker (예: 005930)" id="ticker" value="035420">
-            <label for="strategy">Strategy:</label>
-            <select id="strategy">
-                <option value="MA">MA</option>
-                <option value="MACD">MACD</option>
-                <option value="SqueezeMomentum">Squeeze Momentum</option>
-                <option value="RSI">RSI</option>
-                <!-- 다른 전략들을 여기에 추가할 수 있습니다. -->
-            </select>
-            <select id="sub_strategy">
-                <option value="StopLoss">Stop Loss</option>
-                <!-- 다른 서브 전략들을 여기에 추가할 수 있습니다. -->
-            </select> 
-            <br>
-            <label for="start_date">Start Date:</label>
-            <input type="text" placeholder="start date (YYYYMMDD)" id="start_date" value="20240101">
-            <br>
-            <label for="end_date">End Date:</label>
-            <input type="text" placeholder="end date (YYYYMMDD)" id="end_date" value="20241231">
-
-            <br>
-            <button onclick="executeBacktest()" id="backtest-btn">Backtest Execute</button>
-            
-            <!-- 차트 표시 영역 -->
-            <div id="chart-container" style="margin-top: 20px;">
-                <h3>주가 차트</h3>
-                <div id="stock-chart" style="width: 100%; height: 700px;"></div>
+        <div class="main-controller">
+            <div class="unit">
+                <h2>Stock</h2>
+                <div id="stock-section">
+                    <select-input 
+                        label="Search Type" 
+                        input-id="ticker-searchType" 
+                        value="name"
+                        options='[
+                            {"value": "name", "text": "Name"},
+                            {"value": "ticker", "text": "Ticker"}
+                        ]'>
+                    </select-input>
+                    
+                    <search-input 
+                        label="Ticker" 
+                        placeholder="Ticker (예: 005930)" 
+                        value="NAVER" 
+                        input-id="ticker-input"
+                        btn-id="ticker-btn"
+                        on-search="findTicker()">
+                    </search-input>
+                    
+                    <!-- <divider-component></divider-component> -->
+                </div>
+                <div id="ticker-result"></div>
             </div>
             
+            <div class="unit">
+                <h2>BackTest</h2>
+                <div id="backtest-section">
+                    <text-input 
+                        label="Ticker" 
+                        placeholder="Ticker (예: 005930)" 
+                        value="035420" 
+                        input-id="ticker">
+                    </text-input>
+
+                    <field-group direction="horizontal">
+                        <select-input 
+                            label="Strategy" 
+                            input-id="strategy" 
+                            value="MA"
+                            options='[
+                                {"value": "MA", "text": "MA"},
+                                {"value": "MACD", "text": "MACD"},
+                                {"value": "SqueezeMomentum", "text": "Squeeze Momentum"},
+                                {"value": "RSI", "text": "RSI"}
+                            ]'>
+                        </select-input>
+                        
+                        <select-input 
+                            label="Sub Strategy" 
+                            input-id="sub_strategy" 
+                            value="StopLoss"
+                            options='[
+                                {"value": "StopLoss", "text": "Stop Loss"}
+                            ]'>
+                        </select-input>
+                    </field-group>
+                    
+                    <field-group direction="vertical">
+                        <text-input 
+                            label="Start Date" 
+                            placeholder="YYYYMMDD" 
+                            value="20240101" 
+                            input-id="start_date">
+                        </text-input>
+                        
+                        <text-input 
+                            label="End Date" 
+                            placeholder="YYYYMMDD" 
+                            value="20241231" 
+                            input-id="end_date">
+                        </text-input>
+                    </field-group>
+                    
+                    <button-component 
+                        text="Backtest Execute" 
+                        on-click="executeBacktest()" 
+                        btn-class="btn-primary"
+                        btn-id="backtest-btn">
+                    </button-component>
+                </div>
+            </div>
+        </div>
+
+        <div class="unit" style="flex-grow: 1; align-self: stretch;">
+            <!-- 차트 표시 영역 -->
+            <div id="chart-container">
+                <h3>주가 차트</h3>
+                <div id="stock-chart" style="width: auto; height: 700px;">
+                    Plotly 차트 영역.
+                </div>
+            </div>
+
             <!-- 결과 표시 영역 -->
             <div id="backtest-result" style="margin-top: 20px;"></div>
         </div>
@@ -77,5 +123,30 @@
 
     <script src="{{ url_for('static', filename='./js/backtest.js') }}"></script>
     <script src="{{ url_for('static', filename='./js/stock.js') }}"></script>
+    
+    <script>
+        // DOM이 로드된 후 Web Components 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Web Components 기반 UI가 로드되었습니다.');
+            
+            // 필요한 경우 추가 초기화 로직을 여기에 작성
+            // 예: 이벤트 리스너 추가, 초기 데이터 로드 등
+            
+            // 예시: 입력값 변경 감지
+            const tickerInput = document.getElementById('ticker-input');
+            if (tickerInput) {
+                tickerInput.addEventListener('input', function(e) {
+                    console.log('Ticker 검색어 변경:', e.target.value);
+                });
+            }
+            
+            const backtestTicker = document.getElementById('ticker');
+            if (backtestTicker) {
+                backtestTicker.addEventListener('change', function(e) {
+                    console.log('백테스트 티커 변경:', e.target.value);
+                });
+            }
+        });
+    </script>
 </body>
 </html>
