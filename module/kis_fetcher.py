@@ -23,8 +23,8 @@ _base_headers = {
 }
 
 global keys
-def _getBaseHeader():
-    keys = token_manager.get_keys()
+def _getBaseHeader(invest_type="VPS", index=0):
+    keys = token_manager.get_keys(invest_type, index)
     _base_headers["authorization"] = f"Bearer {keys['ACCESS_TOKEN']}"
     _base_headers["appkey"] = keys["APP_KEY"]
     _base_headers["appsecret"] = keys["APP_SECRET"]
@@ -99,10 +99,9 @@ class APIResp:
 
 ########### API call wrapping : API 호출 공통
 
-def _url_fetch(api_url, ptr_id, tr_cont, params, appendHeaders=None, postFlag=False, hashFlag=True):
-    headers, base_url = _getBaseHeader()  # 기본 header 값 정리
+def _url_fetch(api_url, ptr_id, tr_cont, params, appendHeaders=None, postFlag=False, invest_type="VPS"):
+    headers, base_url = _getBaseHeader(invest_type)  # 기본 header 값 정리
     url = f"{base_url}/{api_url}"
-
 
     # 추가 Header 설정
     tr_id = ptr_id

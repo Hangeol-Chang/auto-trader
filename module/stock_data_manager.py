@@ -19,6 +19,7 @@
 from unittest import result
 import pandas as pd
 import os
+import sqlite3
 from datetime import datetime, timedelta
 from pykrx import stock
 import yfinance as yf
@@ -30,6 +31,7 @@ import module.column_mapper as column_mapper
 
 
 DATA_DIR = "data"
+DB_PATH = os.path.join(DATA_DIR, "stock_data.db")
 # 날짜 관련
 os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -85,7 +87,7 @@ _TRADING_DAY_CACHE = {}
 def get_trading_days(year: str, country_code: str = 'KR') -> list:
     # print(f"get_trading_days: {year}, {country_code}")
     """
-    특정 연도의 모든 개장일을 CSV 파일 또는 yfinance에서 불러와 리스트로 반환합니다.
+    특정 연도의 모든 개장일을 데이터베이스 또는 yfinance에서 불러와 리스트로 반환합니다.
     각 나라별로 별도 관리
     
     Args:
@@ -99,27 +101,31 @@ def get_trading_days(year: str, country_code: str = 'KR') -> list:
     if cache_key in _TRADING_DAY_CACHE:
         return _TRADING_DAY_CACHE[cache_key]
 
-    # 국가별 디렉토리 생성
-    country_dir = os.path.join(DATA_DIR, "date", country_code)
-    print(f"get_trading_days: {year}, {country_code} {country_dir}")
-    os.makedirs(country_dir, exist_ok=True)
-    file_path = os.path.join(country_dir, f"TRADING_DATE_{year}.csv")
+    # 먼저 데이터베이스에서 확인
+    print(f"get_trading_days: {year}, {country_code} (데이터베이스에서 확인)")
+    trading_days = _load_trading_days_from_db(year, country_code)
+    
+    if trading_days:
+        _TRADING_DAY_CACHE[cache_key] = trading_days
+        print(f"get_trading_days: {year}, {country_code} 데이터베이스에서 로드됨")
+        return trading_days
 
     # 대표 종목 가져오기
     representative_ticker = COUNTRY_REPRESENTATIVE_TICKERS.get(country_code, '005930.KS')
 
-    # 날짜가 올해면 API 호출
+    # 데이터베이스에 없으면 API 호출
     try:
         # 각 나라별 대표 종목으로 거래일 조회
         ticker = yf.Ticker(representative_ticker)
         df = ticker.history(start=f"{year}-01-01", end=f"{int(year)+1}-01-01", interval="1d")
         if not df.empty:
-            trading_days = df.index.to_list()
-            # CSV 파일로 저장
-            df_to_save = pd.DataFrame({'date': [d.strftime("%Y%m%d") for d in trading_days]})
-            df_to_save.to_csv(file_path, index=False)
+            # timezone-aware datetime을 naive datetime으로 변환
+            trading_days = [d.tz_localize(None) if d.tz is not None else d for d in df.index.to_list()]
+            # 데이터베이스에 저장
+            _save_trading_days_to_db(trading_days, year, country_code)
             _TRADING_DAY_CACHE[cache_key] = trading_days
             print(f"get_trading_days: {year}, {country_code} 데이터가 저장되었습니다.")
+            return trading_days
 
         else:
             print(f"[경고] yfinance에서 {country_code} {year} 데이터가 비어있습니다.")
@@ -129,38 +135,31 @@ def get_trading_days(year: str, country_code: str = 'KR') -> list:
         print(f"[오류] yfinance에서 {country_code} {year} 데이터 조회 실패: {e}")
         return []
 
-    if os.path.exists(file_path):
-        # CSV 파일에서 개장일 불러오기
-        print(f"get_trading_days: {year}, {country_code} {file_path} exists")
-        try:
-            df = pd.read_csv(file_path)
-            trading_days = [datetime.strptime(str(d), "%Y%m%d") for d in df['date']]
-            _TRADING_DAY_CACHE[cache_key] = trading_days
-            return trading_days
-        except Exception as e:
-            print(f"[오류] {file_path} 읽기 실패: {e}")
-            return []
-
 def split_dates_by_days(start_date: int, end_date: int, days=100) -> list:
     start = datetime.strptime(str(start_date), "%Y%m%d")
     end = datetime.strptime(str(end_date), "%Y%m%d")
+    end = end + timedelta(days=1)
 
     date_list = []
     current_start = start
 
-    while current_start <= end:
+    while current_start < end:
         # 현재 시작 날짜의 연도 끝 (12월 31일)
         year_end = datetime(current_start.year, 12, 31)
         # 100일 뒤 날짜
         days_end = current_start + timedelta(days=days - 1)
         # 종료일은 세 조건 중 가장 빠른 것
-        current_end = min(year_end, days_end, end)
+        # current_end = min(year_end, days_end, end)
+        current_end = min(days_end, end)
+
+        print(f"current_start: {current_start}, end: {current_end}")
 
         start_str = int(current_start.strftime("%Y%m%d"))
         end_str = int(current_end.strftime("%Y%m%d"))
         date_list.append((start_str, end_str))
 
-        current_start = current_end + timedelta(days=1)
+        # current_start = current_end + timedelta(days=1)
+        current_start = current_end
 
     return date_list
 
@@ -189,7 +188,9 @@ def get_next_trading_day(base_date, country_code = "KR") -> str:
 
     while True:
         trading_days = get_trading_days(str(year), country_code=country_code)
-        future_days = [d for d in trading_days if d >= base_date]
+        # timezone-naive datetime으로 변환하여 비교
+        base_date_naive = base_date.replace(tzinfo=None) if base_date.tzinfo is not None else base_date
+        future_days = [d for d in trading_days if (d.replace(tzinfo=None) if d.tzinfo is not None else d) >= base_date_naive]
         if future_days:
             return future_days[0].strftime("%Y%m%d")
     
@@ -225,7 +226,9 @@ def get_previous_trading_day(base_date, country_code = "KR") -> str:
 
     while True:
         trading_days = get_trading_days(str(year), country_code=country_code)
-        past_days = [d for d in trading_days if d <= base_date]
+        # timezone-naive datetime으로 변환하여 비교
+        base_date_naive = base_date.replace(tzinfo=None) if base_date.tzinfo is not None else base_date
+        past_days = [d for d in trading_days if (d.replace(tzinfo=None) if d.tzinfo is not None else d) <= base_date_naive]
         if past_days:
             return past_days[-1].strftime("%Y%m%d")
         year -= 1
@@ -254,7 +257,12 @@ def get_trading_days_in_range(start_date_str: str, end_date_str: str, country_co
         trading_days.extend(year_days)
 
     # 범위 내로 필터링
-    filtered_days = [d for d in trading_days if start_date <= d <= end_date]
+    filtered_days = []
+    for d in trading_days:
+        # timezone-naive datetime으로 변환하여 비교
+        d_naive = d.replace(tzinfo=None) if d.tzinfo is not None else d
+        if start_date <= d_naive <= end_date:
+            filtered_days.append(d_naive)
     return sorted(filtered_days)
 
 def get_valid_date_range(start_date=None, end_date=None, day_padding=14):
@@ -286,6 +294,332 @@ def get_offset_date(base_date, offset_days):
     return offset_date.strftime("%Y%m%d")
 
 ##############################################################################################
+# 데이터 저장 관련 로직 (SQLite)
+##############################################################################################
+def _init_database():
+    """데이터베이스 및 테이블 초기화"""
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            
+            # 거래일 정보 테이블
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS trading_days (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    country_code TEXT NOT NULL,
+                    year TEXT NOT NULL,
+                    date TEXT NOT NULL,
+                    UNIQUE(country_code, year, date)
+                )
+            ''')
+            
+            # 주식 가격 데이터 테이블
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS stock_price_data (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ticker TEXT NOT NULL,
+                    country_code TEXT NOT NULL,
+                    date TEXT NOT NULL,
+                    period_code TEXT NOT NULL DEFAULT 'D',
+                    api_name TEXT NOT NULL,
+                    open REAL,
+                    high REAL,
+                    low REAL,
+                    close REAL,
+                    volume INTEGER,
+                    amount REAL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(ticker, date, period_code, api_name)
+                )
+            ''')
+            
+            # 처리된 데이터 테이블 (MACD, 볼린저 밴드 등)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS processed_data (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ticker TEXT NOT NULL,
+                    date TEXT NOT NULL,
+                    period_code TEXT NOT NULL DEFAULT 'D',
+                    close REAL,
+                    center REAL,
+                    upper_band REAL,
+                    lower_band REAL,
+                    macd REAL,
+                    macd_signal REAL,
+                    macd_histogram REAL,
+                    sma_short REAL,
+                    sma_long REAL,
+                    bf_1m_close REAL,
+                    bf_12m_close REAL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(ticker, date, period_code)
+                )
+            ''')
+            
+            # 종목 정보 테이블
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS ticker_info (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ticker TEXT NOT NULL UNIQUE,
+                    name TEXT,
+                    market TEXT,
+                    market_cap REAL,
+                    shares INTEGER,
+                    close_price REAL,
+                    bps REAL,
+                    per REAL,
+                    pbr REAL,
+                    eps REAL,
+                    dividend_yield REAL,
+                    dps REAL,
+                    sector TEXT,
+                    trading_date TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            conn.commit()
+            print("데이터베이스 테이블이 초기화되었습니다.")
+    except Exception as e:
+        print(f"데이터베이스 초기화 실패: {e}")
+
+def _save_trading_days_to_db(trading_days, year, country_code):
+    """거래일 정보를 데이터베이스에 저장"""
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            
+            # 기존 데이터 삭제
+            cursor.execute(
+                "DELETE FROM trading_days WHERE country_code = ? AND year = ?",
+                (country_code, year)
+            )
+            
+            # 새 데이터 삽입
+            data_to_insert = [
+                (country_code, year, d.strftime("%Y%m%d"))
+                for d in trading_days
+            ]
+            
+            cursor.executemany(
+                "INSERT OR REPLACE INTO trading_days (country_code, year, date) VALUES (?, ?, ?)",
+                data_to_insert
+            )
+            
+            conn.commit()
+            print(f"거래일 데이터가 데이터베이스에 저장되었습니다: {country_code} {year}")
+    except Exception as e:
+        print(f"거래일 데이터 저장 실패: {e}")
+
+def _load_trading_days_from_db(year, country_code):
+    """데이터베이스에서 거래일 정보 로드"""
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            df = pd.read_sql_query(
+                "SELECT date FROM trading_days WHERE country_code = ? AND year = ? ORDER BY date",
+                conn,
+                params=(country_code, year)
+            )
+            
+            if not df.empty:
+                trading_days = [datetime.strptime(d, "%Y%m%d") for d in df['date']]
+                return trading_days
+            return []
+    except Exception as e:
+        print(f"거래일 데이터 로드 실패: {e}")
+        return []
+
+def _check_date_exists_in_db(ticker, target_date, period_code='D', api_name='itemchartprice_history'):
+    """데이터베이스에서 특정 날짜 데이터 존재 여부 확인"""
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT COUNT(*) FROM stock_price_data WHERE ticker = ? AND date = ? AND period_code = ? AND api_name = ?",
+                (ticker, target_date, period_code, api_name)
+            )
+            count = cursor.fetchone()[0]
+            return count > 0
+    except Exception as e:
+        print(f"날짜 존재 확인 중 오류: {e}")
+        return False
+
+def _load_existing_data_from_db(ticker, start_date=None, end_date=None, period_code='D', api_name='itemchartprice_history'):
+    """데이터베이스에서 기존 데이터 로드"""
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            query = """
+                SELECT ticker, date, period_code, open, high, low, close, volume, amount
+                FROM stock_price_data 
+                WHERE ticker = ? AND period_code = ? AND api_name = ?
+            """
+            params = [ticker, period_code, api_name]
+            
+            if start_date and end_date:
+                query += " AND date BETWEEN ? AND ?"
+                params.extend([start_date, end_date])
+            
+            query += " ORDER BY date"
+            
+            df = pd.read_sql_query(query, conn, params=params)
+            return df
+    except Exception as e:
+        print(f"기존 데이터 로드 실패: {e}")
+        return pd.DataFrame()
+
+def _save_data_to_db(dataframe, ticker, country_code, period_code='D', api_name='itemchartprice_history'):
+    """데이터를 데이터베이스에 저장"""
+    try:
+        _init_database()
+        
+        with sqlite3.connect(DB_PATH) as conn:
+            # 데이터프레임에 메타데이터 추가
+            df_to_save = dataframe.copy()
+            df_to_save['ticker'] = ticker
+            df_to_save['country_code'] = country_code
+            df_to_save['period_code'] = period_code
+            df_to_save['api_name'] = api_name
+            
+            # 필요한 컬럼들이 없으면 None으로 추가
+            required_cols = ['open', 'high', 'low', 'close', 'volume', 'amount']
+            for col in required_cols:
+                if col not in df_to_save.columns:
+                    df_to_save[col] = None
+            
+            # 데이터베이스에 저장 (중복 시 업데이트)
+            df_to_save.to_sql('temp_stock_data', conn, if_exists='replace', index=False)
+            
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO stock_price_data 
+                (ticker, country_code, date, period_code, api_name, open, high, low, close, volume, amount, updated_at)
+                SELECT ticker, country_code, date, period_code, api_name, open, high, low, close, volume, amount, CURRENT_TIMESTAMP
+                FROM temp_stock_data
+            ''')
+            
+            cursor.execute('DROP TABLE temp_stock_data')
+            conn.commit()
+            
+            print(f"데이터가 데이터베이스에 저장되었습니다: {ticker} ({len(dataframe)} 행)")
+    except Exception as e:
+        print(f"데이터베이스 저장 실패: {e}")
+
+def _save_processed_data_to_db(dataframe, ticker, period_code='D'):
+    """처리된 데이터를 데이터베이스에 저장"""
+    try:
+        _init_database()
+        
+        with sqlite3.connect(DB_PATH) as conn:
+            df_to_save = dataframe.copy()
+            df_to_save['ticker'] = ticker
+            df_to_save['period_code'] = period_code
+            
+            # 컬럼명 매핑
+            column_mapping = {
+                'bf_1m_close': 'BF_1M_close',
+                'bf_12m_close': 'BF_12M_close'
+            }
+            
+            for old_col, new_col in column_mapping.items():
+                if new_col in df_to_save.columns:
+                    df_to_save[old_col] = df_to_save[new_col]
+            
+            # 필요한 컬럼들이 없으면 None으로 추가
+            required_cols = ['close', 'center', 'upper_band', 'lower_band', 'macd', 'macd_signal', 
+                           'macd_histogram', 'sma_short', 'sma_long', 'bf_1m_close', 'bf_12m_close']
+            for col in required_cols:
+                if col not in df_to_save.columns:
+                    df_to_save[col] = None
+            
+            # 데이터베이스에 저장
+            df_to_save.to_sql('temp_processed_data', conn, if_exists='replace', index=False)
+            
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO processed_data 
+                (ticker, date, period_code, close, center, upper_band, lower_band, macd, macd_signal, 
+                 macd_histogram, sma_short, sma_long, bf_1m_close, bf_12m_close, updated_at)
+                SELECT ticker, date, period_code, close, center, upper_band, lower_band, macd, macd_signal,
+                       macd_histogram, sma_short, sma_long, bf_1m_close, bf_12m_close, CURRENT_TIMESTAMP
+                FROM temp_processed_data
+            ''')
+            
+            cursor.execute('DROP TABLE temp_processed_data')
+            conn.commit()
+            
+            print(f"처리된 데이터가 데이터베이스에 저장되었습니다: {ticker} ({len(dataframe)} 행)")
+    except Exception as e:
+        print(f"처리된 데이터 저장 실패: {e}")
+
+def _load_processed_data_from_db(ticker, start_date=None, end_date=None, period_code='D'):
+    """데이터베이스에서 처리된 데이터 로드"""
+    try:
+        _init_database()
+        
+        with sqlite3.connect(DB_PATH) as conn:
+            query = """
+                SELECT ticker, date, period_code, close, center, upper_band, lower_band, 
+                       macd, macd_signal, macd_histogram, sma_short, sma_long, 
+                       bf_1m_close, bf_12m_close
+                FROM processed_data 
+                WHERE ticker = ? AND period_code = ?
+            """
+            params = [ticker, period_code]
+            
+            if start_date and end_date:
+                query += " AND date BETWEEN ? AND ?"
+                params.extend([start_date, end_date])
+            
+            query += " ORDER BY date"
+            
+            df = pd.read_sql_query(query, conn, params=params)
+            return df
+    except Exception as e:
+        print(f"처리된 데이터 로드 실패: {e}")
+        return pd.DataFrame()
+
+def _save_ticker_info_to_db(dataframe):
+    """종목 정보를 데이터베이스에 저장"""
+    try:
+        _init_database()
+        
+        with sqlite3.connect(DB_PATH) as conn:
+            # 데이터베이스에 저장 (중복 시 업데이트)
+            dataframe.to_sql('temp_ticker_info', conn, if_exists='replace', index=False)
+            
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO ticker_info 
+                (ticker, name, market, market_cap, shares, close_price, bps, per, pbr, eps, 
+                 dividend_yield, dps, sector, trading_date, updated_at)
+                SELECT ticker, name, market, market_cap, shares, close_price, bps, per, pbr, eps,
+                       dividend_yield, dps, sector, trading_date, CURRENT_TIMESTAMP
+                FROM temp_ticker_info
+            ''')
+            
+            cursor.execute('DROP TABLE temp_ticker_info')
+            conn.commit()
+            
+            print(f"종목 정보가 데이터베이스에 저장되었습니다: {len(dataframe)} 행")
+    except Exception as e:
+        print(f"종목 정보 저장 실패: {e}")
+
+def _load_ticker_info_from_db():
+    """데이터베이스에서 종목 정보 로드"""
+    try:
+        _init_database()
+        
+        with sqlite3.connect(DB_PATH) as conn:
+            df = pd.read_sql_query("SELECT * FROM ticker_info ORDER BY ticker", conn)
+            return df
+    except Exception as e:
+        print(f"종목 정보 로드 실패: {e}")
+        return pd.DataFrame()
+
+##############################################################################################
 # 데이터 저장 관련 로직
 ##############################################################################################
 def _check_date_exists_in_data(existing_data, target_date, date_column='date'):
@@ -308,69 +642,6 @@ def _check_date_exists_in_data(existing_data, target_date, date_column='date'):
         
     print(f"날짜 컬럼 '{date_column}'이 데이터에 없습니다.")
     return False
-
-def _ensure_data_directory():
-    """데이터 저장 디렉토리가 없으면 생성"""
-    if not os.path.exists(DATA_DIR):
-        os.makedirs(DATA_DIR)
-
-def _generate_csv_filename(itm_no, api_name, period_code="D"):
-    """CSV 파일명 생성 규칙: {종목번호}_{API명}_{기간코드}.csv"""
-    return f"{itm_no}_{api_name}_{period_code}.csv"
-
-def _get_csv_filepath(filename, country_code='KR'):
-    """CSV 파일의 전체 경로 반환"""
-    return os.path.join(DATA_DIR, country_code, filename)
-
-def _load_existing_data(csv_filepath):
-    """기존 CSV 파일에서 데이터 로드"""
-    if os.path.exists(csv_filepath):
-        try:
-            # 날짜 컬럼을 문자열로 읽어오도록 dtype 지정
-            return pd.read_csv(csv_filepath, dtype={'date': str})
-        except Exception as e:
-            print(f"CSV 파일 로드 실패: {e}")
-            return None
-    return None
-
-def _save_data_to_csv(dataframe, csv_filepath):
-    """데이터를 CSV 파일로 저장"""
-    try:
-        _ensure_data_directory()
-        # 날짜순으로 정렬하여 저장
-        dataframe_sorted = dataframe.sort_values(by='date').reset_index(drop=True)
-        dataframe_sorted.to_csv(csv_filepath, index=False, encoding='utf-8-sig')
-        print(f"데이터가 저장되었습니다: {csv_filepath}")
-    except Exception as e:
-        print(f"CSV 파일 저장 실패: {e}")
-
-def _merge_and_save_data(existing_data, new_data, csv_filepath, date_column='date'):
-    """
-    기존 데이터와 새 데이터를 병합하여 저장 (개선된 버전)
-    - 날짜를 문자열로 다루어 안정성 확보
-    """
-    # date가 datetime으로 되어있으면 YYYYMMDD로 변환
-    if date_column in new_data.columns:
-        if pd.api.types.is_datetime64_any_dtype(new_data[date_column]):
-            new_data[date_column] = new_data[date_column].dt.strftime('%Y%m%d')
-
-    if existing_data is None or existing_data.empty:
-        _save_data_to_csv(new_data, csv_filepath)
-        return new_data
-
-    if date_column in existing_data.columns:
-        if pd.api.types.is_datetime64_any_dtype(existing_data[date_column]):
-            existing_data[date_column] = existing_data[date_column].dt.strftime('%Y%m%d')
-    try:
-        combined_data = pd.concat([existing_data, new_data], ignore_index=True)
-        # 날짜 기준으로 중복 제거 (API로 새로 받은 데이터를 우선)
-        combined_data = combined_data.drop_duplicates(subset=[date_column], keep='last')
-        _save_data_to_csv(combined_data, csv_filepath)
-        return combined_data
-    except Exception as e:
-        print(f"데이터 병합 실패: {e}")
-        # 병합 실패 시 새 데이터만 반환 (기존 데이터 손실 방지)
-        return new_data
 
 ##############################################################################################
 # KIS API
@@ -468,9 +739,6 @@ def get_itempricechart_2(
     # 국내, 해외 종합 지수조회
     country_code = get_country_code(ticker)
     
-    # CSV 파일명 생성 (API 이름에 output2를 추가해 구분)
-    csv_filename = _generate_csv_filename(ticker, "itemchartprice_history", period_code)
-    csv_filepath = _get_csv_filepath(csv_filename, country_code=country_code)
     # 기존 데이터 로드
     existing_data = None
 
@@ -490,7 +758,7 @@ def get_itempricechart_2(
         if(ed_date < st_date):
             st_date = ed_date
 
-        existing_data = _load_existing_data(csv_filepath)
+        existing_data = _load_existing_data_from_db(ticker, st_date, ed_date, period_code, 'itemchartprice_history')
 
         blank_dates = []
         # 여전히 비어있으면
@@ -498,7 +766,8 @@ def get_itempricechart_2(
             # 기존 데이터에서 요청한 날짜 범위의 데이터가 모두 있는지 확인
             valid_date_list = get_trading_days_in_range(st_date, ed_date, country_code=country_code)
             for date in valid_date_list:
-                if not _check_date_exists_in_data(existing_data, date):
+                date_str = date.strftime("%Y%m%d")
+                if not _check_date_exists_in_db(ticker, date_str, period_code, 'itemchartprice_history'):
                     blank_dates.append(date)
         else:
             blank_dates = get_trading_days_in_range(st_date, ed_date, country_code=country_code)
@@ -526,54 +795,69 @@ def get_itempricechart_2(
 
             print("API에서 새로운 데이터를 가져옵니다...")
             res = kis_fetcher._url_fetch(url, tr_id, tr_cont, params)
-
             current_data = pd.DataFrame(res.getBody().output2)  # 기간별 일봉 데이터
+
             # Convert KIS column names to my_app format with dual header (Korean + my_app)
             col_as_is = "kis" if country_code == 'KR' else "kis_ovs"
             dataframe = column_mapper.convert_dataframe_columns(current_data, as_is=col_as_is, to_be="my_app")
-            # 새로운 데이터를 CSV에 저장 (기존 데이터와 병합))
-            result_data = _merge_and_save_data(existing_data, dataframe, csv_filepath)
+            
+            # 새로운 데이터를 데이터베이스에 저장
+            _save_data_to_db(dataframe, ticker, country_code, period_code, 'itemchartprice_history')
+            
+            # 결과 데이터에 병합
+            if result_data is None:
+                result_data = dataframe
+            else:
+                result_data = pd.concat([result_data, dataframe], ignore_index=True)
+            
             print("API 요청 대기시간을 기다립니다...") 
             time.sleep(1)
 
         else:
-            # date 병합
+            # 기존 데이터 사용
             print(f"기존 데이터에서 {st_date} ~ {ed_date} 기간의 데이터를 찾았습니다. API 호출을 건너뜁니다.")
 
-            filtered_data = existing_data[
-                (existing_data['date'] >= st_date) & 
-                (existing_data['date'] <= ed_date)
-            ].copy()
-            result_data = pd.concat([result_data, filtered_data], ignore_index=True)
+            if result_data is None:
+                result_data = existing_data
+            else:
+                result_data = pd.concat([result_data, existing_data], ignore_index=True)
+    
     # 전체 기간 데이터 조회가 끝난 후, 한번에 필터링하여 반환
     try:
-        result_data['date'] = pd.to_datetime(result_data['date'], format='%Y%m%d', errors='coerce')
-        start_dt = pd.to_datetime(_ori_start_date, format='%Y%m%d')
-        end_dt = pd.to_datetime(_ori_end_date, format='%Y%m%d')
-        result_data = result_data[
-            (result_data['date'] >= start_dt) & 
-            (result_data['date'] <= end_dt)
-        ].copy()
-        
-        # 날짜를 YYYYMMDD 형식으로 변환
-        result_data['date'] = result_data['date'].dt.strftime('%Y%m%d')  # 날짜를 YYYYMMDD 형식으로 변환
+        if result_data is not None and not result_data.empty:
+            result_data['date'] = pd.to_datetime(result_data['date'], format='%Y%m%d', errors='coerce')
+            start_dt = pd.to_datetime(_ori_start_date, format='%Y%m%d')
+            end_dt = pd.to_datetime(_ori_end_date, format='%Y%m%d')
+            result_data = result_data[
+                (result_data['date'] >= start_dt) & 
+                (result_data['date'] <= end_dt)
+            ].copy()
+            
+            # 날짜를 YYYYMMDD 형식으로 변환
+            result_data['date'] = result_data['date'].dt.strftime('%Y%m%d')  # 날짜를 YYYYMMDD 형식으로 변환
 
-        # 모든 열을 값을 보고 적절한 형으로 변환
-        for col in result_data.columns:
-            if col == 'date':
-                continue
-            if result_data[col].dtype == 'object':
-                # 숫자형으로 변환 (오류가 나면 NaN 처리)
-                result_data[col] = pd.to_numeric(result_data[col], errors='coerce')
+            # 모든 열을 값을 보고 적절한 형으로 변환
+            for col in result_data.columns:
+                if col == 'date':
+                    continue
+                if result_data[col].dtype == 'object':
+                    # 숫자형으로 변환 (오류가 나면 NaN 처리)
+                    result_data[col] = pd.to_numeric(result_data[col], errors='coerce')
+            
+            # 날짜 기준으로 오름차순 정렬
+            result_data = result_data.sort_values('date').reset_index(drop=True)
+        else:
+            result_data = pd.DataFrame()
 
     except Exception as e:
         print(f"데이터 필터링 중 오류: {e}")
+        result_data = pd.DataFrame()
 
     return result_data
 
 def get_full_ticker(include_screening_data=True):
     """
-    pykrx를 사용해서 한국에 상장된 모든 ticker를 가져와서 CSV 파일로 저장
+    pykrx를 사용해서 한국에 상장된 모든 ticker를 가져와서 데이터베이스에 저장
     스크리닝에 필요한 추가 데이터도 포함 가능
     
     Args:
@@ -581,24 +865,20 @@ def get_full_ticker(include_screening_data=True):
     Returns:
         pd.DataFrame: ticker 정보가 담긴 DataFrame
     """
-    if include_screening_data:
-        ticker_file_path = os.path.join(DATA_DIR, "KR_ALL_TICKERS_WITH_SCREENING.csv")
-    else:
-        ticker_file_path = os.path.join(DATA_DIR, "KR_ALL_TICKERS.csv")
     
-    # 오늘 날짜 기준으로 파일이 있고 최신이면 기존 파일 사용
-    if os.path.exists(ticker_file_path):
-        try:
-            # 파일 수정 시간 확인
-            file_mod_time = datetime.fromtimestamp(os.path.getmtime(ticker_file_path))
-            today = datetime.now().date()
+    # 오늘 날짜 기준으로 데이터베이스에서 최신 데이터가 있는지 확인
+    try:
+        existing_data = _load_ticker_info_from_db()
+        if not existing_data.empty and 'trading_date' in existing_data.columns:
+            # 파일이 오늘 생성되었으면 기존 데이터 사용
+            today = datetime.now().strftime("%Y%m%d")
+            latest_trading_date = existing_data['trading_date'].iloc[0] if len(existing_data) > 0 else None
             
-            # 파일이 오늘 생성되었으면 기존 파일 사용
-            if file_mod_time.date() == today:
-                print(f"기존 ticker 파일을 사용합니다: {ticker_file_path}")
-                return pd.read_csv(ticker_file_path)
-        except Exception as e:
-            print(f"기존 ticker 파일 확인 중 오류: {e}")
+            if latest_trading_date == today:
+                print(f"기존 ticker 데이터를 사용합니다 (데이터베이스)")
+                return existing_data
+    except Exception as e:
+        print(f"기존 ticker 데이터 확인 중 오류: {e}")
     
     print("pykrx에서 최신 ticker 정보를 가져옵니다...")
     
@@ -771,9 +1051,8 @@ def get_full_ticker(include_screening_data=True):
                 if col in all_tickers.columns:
                     all_tickers[col] = pd.to_numeric(all_tickers[col], errors='coerce')
         
-        # CSV 파일로 저장
-        _ensure_data_directory()
-        all_tickers.to_csv(ticker_file_path, index=False, encoding='utf-8-sig')
+        # 데이터베이스에 저장
+        _save_ticker_info_to_db(all_tickers)
         
         print(f"\n=== 수집 완료 ===")
         print(f"총 {len(all_tickers)}개의 ticker가 저장되었습니다.")
@@ -785,17 +1064,18 @@ def get_full_ticker(include_screening_data=True):
         if include_screening_data:
             print(f"\n스크리닝 데이터 컬럼: {[col for col in all_tickers.columns if col not in ['ticker', 'name', 'market', 'updated_date', 'trading_date']]}")
         
-        print(f"파일 저장 위치: {ticker_file_path}")
+        print(f"데이터베이스에 저장 완료")
         
         return all_tickers
         
     except Exception as e:
         print(f"ticker 정보 조회 실패: {e}")
         
-        # 실패시 기존 파일이 있으면 반환
-        if os.path.exists(ticker_file_path):
-            print("기존 ticker 파일을 사용합니다.")
-            return pd.read_csv(ticker_file_path)
+        # 실패시 기존 데이터가 있으면 반환
+        existing_data = _load_ticker_info_from_db()
+        if not existing_data.empty:
+            print("기존 ticker 데이터를 사용합니다.")
+            return existing_data
         else:
             print("ticker 정보를 가져올 수 없습니다.")
             return pd.DataFrame()
@@ -804,16 +1084,11 @@ def get_full_ticker(include_screening_data=True):
 ##############################################################################################
 # data processing api
 ##############################################################################################
-PROCESSED_DATA_DIR = os.path.join(DATA_DIR, "processed")
-
 
 ##############################################################################################
 # 처리된 데이터 저장 디렉토리 생성
 ##############################################################################################
-def _ensure_processed_data_directory():
-    """처리된 데이터 저장 디렉토리가 없으면 생성"""
-    if not os.path.exists(PROCESSED_DATA_DIR):
-        os.makedirs(PROCESSED_DATA_DIR)
+# PROCESSED_DATA_DIR는 데이터베이스로 대체됨
 
 ###############################################################################################
 # daily data를 이용해서 계산할 지표 전부 처리
@@ -842,40 +1117,14 @@ def get_processed_data_D(
     """
     start_date, end_date = get_valid_date_range(start_date, end_date, day_padding = 14)
     
-    # 처리된 데이터 파일명 생성 규칙: {종목번호}_macd_{기간코드}.csv
-    processed_filename = f"{itm_no}_processed_{period_code}.csv"
-    processed_filepath = os.path.join(PROCESSED_DATA_DIR, processed_filename)
-    
     # 캐시된 처리 데이터가 있는지 확인
-    if os.path.exists(processed_filepath):
-        try:
-            existing_processed = pd.read_csv(processed_filepath)
-            # 요청한 날짜 범위가 이미 처리되어 있는지 확인
-                
-            if not existing_processed.empty and 'date' in existing_processed.columns:
-                existing_processed['date'] = pd.to_datetime(existing_processed['date'], format='%Y%m%d', errors='coerce')
-                
-                if start_date and end_date:
-                    start_dt = pd.to_datetime(start_date, format='%Y%m%d')
-                    end_dt = pd.to_datetime(end_date, format='%Y%m%d')
-                    
-                    # 요청한 범위의 데이터가 모두 있는지 확인 -> TODO : 이부분 로직 바꿔야함.
-                    filtered_existing = existing_processed[
-                        (existing_processed['date'] >= start_dt) & 
-                        (existing_processed['date'] <= end_dt)
-                    ]
-                    print(f"요청한 날짜 범위: {start_dt} ~ {end_dt}")
-                    print(f"캐시된 데이터에서 필터링된 행 수: {(filtered_existing)}")
-                    
-                    if len(filtered_existing) > 0:
-                        print(f"캐시된 데이터를 사용합니다: {processed_filename}")
-                        # 날짜를 다시 문자열로 변환
-                        filtered_existing['date'] = filtered_existing['date'].dt.strftime('%Y%m%d')
-                        return filtered_existing
-        except Exception as e:
-            print(f"기존 데이터 확인 중 오류: {e}")
+    existing_processed = _load_processed_data_from_db(itm_no, start_date, end_date, period_code)
+    
+    if not existing_processed.empty:
+        print(f"캐시된 데이터를 사용합니다: {itm_no}")
+        return existing_processed
 
-    # processed_filepath가 존재하지 않거나 유효한 데이터가 없으면 새로 만들기
+    # 처리된 데이터가 없으면 새로 만들기
     try:
         # get_itempricechart_2에서 원시 데이터 가져오기
         print(f"getting raw stock data '{itm_no}' | '{period_code}' ...")
@@ -940,13 +1189,12 @@ def get_processed_data_D(
         processed_data['date'] = processed_data['date'].dt.strftime('%Y%m%d')
 
         # 처리된 데이터 저장
-        _ensure_processed_data_directory()
-        processed_data.to_csv(processed_filepath, index=False, encoding='utf-8-sig')
+        _save_processed_data_to_db(processed_data, itm_no, period_code)
         
-        print(f"MACD 데이터 처리 완료: {processed_filename}")
+        print(f"MACD 데이터 처리 완료: {itm_no}")
         print(f"처리된 데이터 행 수: {len(processed_data)}")
         print(f"컬럼: {processed_data.columns.tolist()}")
-        print(f"저장 위치: {processed_filepath}")
+        print(f"데이터베이스에 저장 완료")
         
         # 요청한 날짜 범위로 필터링
         if start_date and end_date:
@@ -985,31 +1233,12 @@ def get_processed_data_M(
     # start_date를 1년 전으로 땡김
     start_date = get_offset_date(start_date, -365)
 
-    processed_filename = f"{itm_no}_processed_{period_code}.csv"
-    processed_filepath = os.path.join(PROCESSED_DATA_DIR, processed_filename)
-
-    if os.path.exists(processed_filepath):
-        try:
-            existing_processed = pd.read_csv(processed_filepath)
-            if not existing_processed.empty and 'date' in existing_processed.columns:
-                existing_processed['date'] = pd.to_datetime(existing_processed['date'], format='%Y%m%d', errors='coerce')
-                
-                if start_date and end_date:
-                    start_dt = pd.to_datetime(start_date, format='%Y%m%d')
-                    end_dt = pd.to_datetime(end_date, format='%Y%m%d')
-                    
-                    # 요청한 범위의 데이터가 모두 있는지 확인 -> TODO : 이부분 로직 바꿔야함.
-                    filtered_existing = existing_processed[
-                        (existing_processed['date'] >= start_dt) & 
-                        (existing_processed['date'] <= end_dt)
-                    ]
-                    
-                    if len(filtered_existing) > 0:
-                        print(f"캐시된 월봉 데이터를 사용합니다: {processed_filename}")
-                        filtered_existing['date'] = filtered_existing['date'].dt.strftime('%Y%m%d')
-                        return filtered_existing
-        except Exception as e:
-            print(f"기존 월봉 데이터 확인 중 오류: {e}")
+    # 캐시된 처리 데이터가 있는지 확인
+    existing_processed = _load_processed_data_from_db(itm_no, start_date, end_date, period_code)
+    
+    if not existing_processed.empty:
+        print(f"캐시된 월봉 데이터를 사용합니다: {itm_no}")
+        return existing_processed
 
     try:
         print(f"getting raw stock data '{itm_no}' | '{period_code}' ...")
@@ -1047,11 +1276,33 @@ def get_processed_data_M(
         processed_data['BF_1M_close'] = processed_data['close'].shift(1)  # 이전 월봉 종가
         processed_data['BF_12M_close'] = processed_data['close'].shift(12)  # 12개월 전 종가
         
-        # processed_data['trade'] = 
+        # 날짜를 다시 문자열로 변환 (저장을 위해)
+        processed_data['date'] = processed_data['date'].dt.strftime('%Y%m%d')
 
-        print(processed_data)
+        # 처리된 데이터 저장
+        _save_processed_data_to_db(processed_data, itm_no, period_code)
+        
+        print(f"월봉 데이터 처리 완료: {itm_no}")
+        print(f"처리된 데이터 행 수: {len(processed_data)}")
+        print(f"데이터베이스에 저장 완료")
+        
         return processed_data
 
     except Exception as e:
         print(f"월봉 원시 데이터 가져오기 실패: {e}")
         return pd.DataFrame()
+
+##############################################################################################
+# 데이터베이스 초기화 (모듈 로드 시 실행)
+##############################################################################################
+def _ensure_database_initialized():
+    """데이터베이스가 초기화되지 않았다면 초기화"""
+    if not os.path.exists(DB_PATH):
+        _init_database()
+
+# 모듈 로드 시 데이터베이스 초기화 확인
+try:
+    _ensure_database_initialized()
+except:
+    # 초기화 실패 시 무시하고 계속 (필요할 때 다시 시도)
+    pass

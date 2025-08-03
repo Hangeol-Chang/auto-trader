@@ -11,9 +11,12 @@ __pycache__/
 *.yaml
 *.yml
 .venv/
+venv/
 
 private/
 guide/
 sample/
 data/**/*.csv
 data/**/*.json
+
+**/*.db
