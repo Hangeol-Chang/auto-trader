@@ -38,6 +38,73 @@ SUB_STRATEGIES = {
     "StopLoss":        stop_loss_strategy.StopLoss_strategy,
 }
 
+class I_Trader:
+    """
+        자동 트레이딩 인터페이스
+        
+    """
+    def __init__(self, type="VPS", **kwargs):
+        self.type = type
+        self.orderer = None
+        self.strategy = None
+    
+    def set_strategy(self, strategy_name):
+        self.strategy = STRATEGIES.get(strategy_name, None)
+        if self.strategy is None:
+            raise ValueError(f"Unknown strategy: {strategy_name}")
+
+    def run(self):
+        """트레이딩 실행"""
+        raise NotImplementedError("트레이딩 실행 메서드는 구현되지 않았습니다.")
+    pass
+
+class Backtest_Trader(I_Trader):
+    '''
+    동작 구조
+        1. 백테스트 실행 후 결과를 db에 저장
+        2. 백테스트 result를 받음 <- 날짜 토큰
+        3. ticker, date 이용해서 그릴 그래프 데이터를 가져옴. <- 일봉 데이터
+        4. 날짜 토큰을 이용해서 db에서 거래내역을 검색.
+        5. 3을 바탕으로 일봉 그래프, strategy를 보고 필요한 subplot을 그림.
+        6. db에서 꺼내온 매수, 매도 신호 시각화.
+
+    '''
+
+    def __init__(self, **kwargs):
+        super().__init__(type="backtest", **kwargs)
+        """
+            백테스트 트레이더 초기화
+            - type : "backtest"로 고정
+        """
+        self.orderer = stock_orderer.BackTest_Orderer()
+        self.strategy = STRATEGIES.get(kwargs.get('strategy', None), None)
+
+        self.start_date = kwargs.get('start_date', None)
+        self.end_date = kwargs.get('end_date', None)
+        
+        self.ticker = kwargs.get('ticker', None)
+
+    def run(self):
+        pass
+
+# KIS - VPS 트레이더
+# KIS - PROD 트레이더
+class Live_Trader(I_Trader):
+    '''
+    동작 구조
+        1. stock finding -> 직접 입력해줄수도 있고, 추후에는 재밌는 종목을 알아서 찾도록 할 예정.
+        2. web_socket을 통해 찾은 stock들의 분봉 정보를 구독.
+        3. stock 데이터들의 previeous 데이터를 검색하고, 이를 dict 하나 만들어서 저장해둠. -> 검색할 때 데이터는 알아서 db에 저장
+        while True:
+            4. 웹소켓 신호를 기다림
+            5. 웹소켓 신호가 오면, 해당 종목의 매수 매도를 알잘딱하게 결정
+            6. 매수 매도 신호가 오면, orderer에 주문을 요청.
+
+            +. 일정 주기로 관심있는 stock을 갱신.
+    '''
+
+    pass
+
 class Trader:
     '''
         호출 순서 : 
