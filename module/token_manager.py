@@ -88,7 +88,7 @@ def auth_ws_validate(invest_type="VPS", index=0):
         now = datetime.now()
         if now >= token_expire_time :
             # 토큰 재발급
-            auth(invest_type, index)
+            auth_ws(invest_type, index)
         else:
             # print(f"토큰 유효시간 확인: {token_expire_time} (현재시간: {now}) - 유효합니다.\n")
             pass
@@ -129,7 +129,8 @@ def get_keys(invest_type="VPS", index=0):
         "APP_SECRET": keys[invest_type][index]['APP_SECRET'],
         "ACCESS_TOKEN": tokens[invest_type][str(index)]['APP_TOKEN'],
         "WS_APPROVAL_KEY": tokens[invest_type][str(index)]['WS_APPROVAL_KEY'],        
-        "URL_BASE": keys[invest_type][index]['URL_BASE']
+        "URL_BASE": keys[invest_type][index]['URL_BASE'],
+        "URL_BASE_WS": keys[invest_type][index]['URL_BASE_WS'],
     }
 
 def change_invest_type(invest_type="VPS", index=0):
@@ -223,7 +224,7 @@ open_map: dict = {}
 
 def add_open_map(
         name: str,
-        request: Callable[[str, str, ...], tuple[dict, list[str]]],
+        request: Callable[[str, str, ...], any],
         data: str | list[str],
         kwargs: dict = None,
 ):
@@ -276,7 +277,11 @@ class KISWebSocket:
     amx_retries: int = 0
 
     # init
-    def __init__(self, api_url: str, max_retries: int = 3):
+    def __init__(self, api_url: str, max_retries: int = 3, invest_type="VPS", index=0):
+        self.invest_type = invest_type
+        self.index = index
+        self.base_url = keys[invest_type][index]['URL_BASE_WS']
+        
         self.api_url = api_url
         self.max_retries = max_retries
 
@@ -313,6 +318,7 @@ class KISWebSocket:
                 add_data_map(
                     tr_id=rsp.tr_id, encrypt=rsp.encrypt, key=rsp.ekey, iv=rsp.iv
                 )
+                print(tr_id, rsp.isOk, rsp.tr_msg)
 
                 if rsp.isPingPong:
                     print(f"### RECV [PINGPONG] [{raw}]")
@@ -322,20 +328,25 @@ class KISWebSocket:
                 if self.result_all_data:
                     show_result = True
 
+            print(f"### RECV [{tr_id}] [{raw}]")
             if show_result is True and self.on_result is not None:
                 self.on_result(ws, tr_id, df, data_map[tr_id])
 
     async def __runner(self):
+        print('open_map', open_map)
         if len(open_map.keys()) > 40:
             raise ValueError("Subscription's max is 40")
 
-        url = f"{self.base_url}/{self.api_url}"
+        url = f"{self.base_url}{self.api_url}"
 
         while self.retry_count < self.max_retries:
             try:
+                print(url)
                 async with websockets.connect(url) as ws:
                     # request subscribe
+                    print('open_map size:', len(open_map))
                     for name, obj in open_map.items():
+                        print('obj:', obj)
                         await self.send_multiple(
                             ws, obj["func"], "1", obj["items"], obj["kwargs"]
                         )
@@ -355,15 +366,15 @@ class KISWebSocket:
             cls,
             ws: websockets.ClientConnection,
             request: Callable[[str, str, ...], tuple[dict, list[str]]],
+            # request: Callable[[str, str], tuple[dict, list[str]]],
             tr_type: str,
             data: str,
             kwargs: dict = None,
     ):
         k = {} if kwargs is None else kwargs
         msg, columns = request(tr_type, data, **k)
-
+        # print(msg)
         add_data_map(tr_id=msg["body"]["input"]["tr_id"], columns=columns)
-
         logging.info("send message >> %s" % json.dumps(msg))
 
         await ws.send(json.dumps(msg))
@@ -398,6 +409,7 @@ class KISWebSocket:
             self,
             ws: websockets.ClientConnection,
             request: Callable[[str, str, ...], tuple[dict, list[str]]],
+            # request: Callable[[str, str], tuple[dict, list[str]]],
             data: list | str,
     ):
         self.send_multiple(ws, request, "2", data)

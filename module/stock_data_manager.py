@@ -336,7 +336,7 @@ def get_daily_price(
         "FID_PERIOD_DIV_CODE": period_code, # 기간분류코드 D : (일)최근 30거래일, W : (주)최근 30주, M : (월)최근 30개월
         "FID_ORG_ADJ_PRC": adj_prc_code     # 0 : 수정주가반영, 1 : 수정주가미반영 * 수정주가는 액면분할/액면병합 등 권리 발생 시 과거 시세를 현재 주가에 맞게 보정한 가격
     }
-    res = kis_fetcher._url_fetch(url, tr_id, tr_cont, params)
+    res = kis_fetcher.url_fetch(url, tr_id, tr_cont, params)
 
     # Assuming 'output' is a dictionary that you want to convert to a DataFrame
     current_data = pd.DataFrame(res.getBody().output)  # getBody() kis_auth.py 존재
@@ -385,7 +385,7 @@ def get_itempricechart_1(
     }
     
     print("API에서 새로운 데이터를 가져옵니다...")
-    res = kis_fetcher._url_fetch(url, tr_id, tr_cont, params)
+    res = kis_fetcher.url_fetch(url, tr_id, tr_cont, params)
 
     # output1: 현재가 정보 (실시간 상태)
     current_data = pd.DataFrame(res.getBody().output1, index=[0])  # 현재가 정보
@@ -462,7 +462,7 @@ def get_itempricechart_2(
             }
 
             print("API에서 새로운 데이터를 가져옵니다...")
-            res = kis_fetcher._url_fetch(url, tr_id, tr_cont, params)
+            res = kis_fetcher.url_fetch(url, tr_id, tr_cont, params)
             current_data = pd.DataFrame(res.getBody().output2)  # 기간별 일봉 데이터
 
             # Convert KIS column names to my_app format with dual header (Korean + my_app)

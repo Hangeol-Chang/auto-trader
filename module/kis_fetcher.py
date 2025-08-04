@@ -31,6 +31,15 @@ def _getBaseHeader(invest_type="VPS", index=0):
 
     return copy.deepcopy(_base_headers), keys['URL_BASE']
 
+def _getBaseHeader_ws(invest_type="VPS", index=0):
+    keys = token_manager.get_keys(invest_type, index)
+    _base_headers["authorization"] = f"Bearer {keys['ACCESS_TOKEN']}"
+    _base_headers["appkey"] = keys["APP_KEY"]
+    _base_headers["secretkey"] = keys["APP_SECRET"]
+    _base_headers["approval_key"] = keys["WS_APPROVAL_KEY"]
+
+    return copy.deepcopy(_base_headers), keys['URL_BASE_WS']
+
 # API 호출 응답에 필요한 처리 공통 함수
 class APIResp:
     def __init__(self, resp):
@@ -98,9 +107,8 @@ class APIResp:
     # end of class APIResp
 
 ########### API call wrapping : API 호출 공통
-
-def _url_fetch(api_url, ptr_id, tr_cont, params, appendHeaders=None, postFlag=False, invest_type="VPS"):
-    headers, base_url = _getBaseHeader(invest_type)  # 기본 header 값 정리
+def url_fetch(api_url, ptr_id, tr_cont, params, appendHeaders=None, postFlag=False, invest_type="VPS", index=0):
+    headers, base_url = _getBaseHeader(invest_type, index)  # 기본 header 값 정리
     url = f"{base_url}/{api_url}"
 
     # 추가 Header 설정
@@ -140,3 +148,27 @@ def _url_fetch(api_url, ptr_id, tr_cont, params, appendHeaders=None, postFlag=Fa
         print("Error Code : " + str(res.status_code) + " | " + res.text)
         return None
 
+
+
+def data_fetch(tr_id, tr_type, params, appendHeaders=None, invest_type="VPS", index=0) -> dict:
+    headers, url_base = _getBaseHeader_ws(invest_type, index)  # 기본 header 값 정리
+
+    headers["tr_type"] = tr_type
+    headers["custtype"] = "P"
+
+    if appendHeaders is not None:
+        if len(appendHeaders) > 0:
+            for x in appendHeaders.keys():
+                headers[x] = appendHeaders.get(x)
+
+    if _DEBUG:
+        print("< Sending Info >")
+        print(f"TR: {tr_id}")
+        print(f"<header>\n{headers}")
+
+    inp = {
+        "tr_id": tr_id,
+    }
+    inp.update(params)
+
+    return {"header": headers, "body": {"input": inp}}

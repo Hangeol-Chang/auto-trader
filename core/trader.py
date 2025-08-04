@@ -9,8 +9,8 @@
 
 import logging
 import pandas as pd
-from module import stock_data_manager
-from module import stock_orderer
+from module import stock_data_manager, stock_data_manager_ws
+from module import stock_orderer, token_manager
 from strategy.strategy import SignalType
 from strategy import    \
     ma_strategy, \
@@ -46,18 +46,22 @@ class I_Trader:
     def __init__(self, type="VPS", **kwargs):
         self.type = type
         self.orderer = None
-        self.strategy = None
+        self.strategy = self.set_strategy(kwargs.get('strategy', None)) 
     
     def set_strategy(self, strategy_name):
-        self.strategy = STRATEGIES.get(strategy_name, None)
+        strategy = STRATEGIES.get(strategy_name, None)
         if self.strategy is None:
             raise ValueError(f"Unknown strategy: {strategy_name}")
+        return strategy
 
     def run(self):
         """트레이딩 실행"""
         raise NotImplementedError("트레이딩 실행 메서드는 구현되지 않았습니다.")
     pass
 
+#####################################################################################
+##################### 주식 백테스트 트레이더 ###########################################
+#####################################################################################
 class Backtest_Trader(I_Trader):
     '''
     동작 구조
@@ -87,6 +91,10 @@ class Backtest_Trader(I_Trader):
     def run(self):
         pass
 
+
+#####################################################################################
+##################### 주식 라이브 트레이더 #############################################
+#####################################################################################
 # KIS - VPS 트레이더
 # KIS - PROD 트레이더
 class Live_Trader(I_Trader):
@@ -103,7 +111,49 @@ class Live_Trader(I_Trader):
             +. 일정 주기로 관심있는 stock을 갱신.
     '''
 
-    pass
+
+    def __init__(self, **kwargs):
+        super().__init__(type="live", **kwargs)
+
+        self.kws = token_manager.KISWebSocket(api_url="/tryitout")
+
+        """
+            -> 현재 계좌 정보 업데이트.
+            REST API - get_inquire_balance_obj - 주식잔고조회(현재잔고)
+            REST API - get_inquire_balance_lst - 주식잔고조회(현재종목별 잔고)
+        """
+
+        """
+            사용할 티커 정보 저장.
+        """
+
+        """ 
+            ticker에 맞춰서 데이터 불러와서 저장해두기.
+            REST API
+        """
+
+        pass
+
+    def run(self):
+        self.kws.start(on_result=self.on_result)
+        pass
+
+    def on_result(self, ws, tr_id, result, data_info):
+        """
+            웹소켓에서 받은 결과를 처리하는 메서드
+        """
+        print(f"WebSocket Result - TR ID: {tr_id}, Result: {result}, Data Info: {data_info}")
+        # 여기에 결과 처리 로직을 추가할 수 있습니다.
+        # 실제 처리 진행할 곳.
+
+
+######################################################################################
+##################### 코인 백테스트 트레이더  ###########################################
+######################################################################################
+
+######################################################################################
+##################### 코인 라이브 트레이더 ##############################################
+######################################################################################
 
 class Trader:
     '''
