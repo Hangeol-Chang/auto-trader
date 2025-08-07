@@ -8,6 +8,7 @@
 """
 
 import logging
+import time
 import pandas as pd
 from module import stock_data_manager, stock_data_manager_ws
 from module import stock_orderer, token_manager
@@ -50,7 +51,7 @@ class I_Trader:
     
     def set_strategy(self, strategy_name):
         strategy = STRATEGIES.get(strategy_name, None)
-        if self.strategy is None:
+        if strategy is None:
             raise ValueError(f"Unknown strategy: {strategy_name}")
         return strategy
 
@@ -155,6 +156,44 @@ class Live_Trader(I_Trader):
 ##################### 코인 라이브 트레이더 ##############################################
 ######################################################################################
 
+from strategy_crypto import test_strategy
+from module import upbit_fetcher, crypto_orderer
+
+import json
+class Live_Crypto_Trader(I_Trader):
+
+    def __init__(self, **kwargs):
+        self.type = "live"
+        self.orderer = crypto_orderer.Live_Orderer()
+        self.strategy = test_strategy.Test_Strategy_Crypto()
+
+        key_index = kwargs.get('index', 0)
+
+        with open('private/keys.json', 'r') as f:
+            keys = json.load(f)
+            self.APP_KEY = keys['COIN'][key_index]['APP_KEY']
+            self.APP_SECRET = keys['COIN'][key_index]['APP_SECRET']
+
+        # 데이터 가져오기.
+        self.set_data()
+
+    def set_data(self):
+        pass
+
+    def run(self):
+        """
+            종목들에 대한 데이터 가져오기.
+        """
+        while True:
+            print("Starting Live Crypto Trader...")
+
+            time.sleep(1)  # 잠시 대기
+    pass
+
+## Legacy
+#######################################################################################
+##################### 트레이더 클래스 ###################################################
+#######################################################################################
 class Trader:
     '''
         호출 순서 : 
@@ -238,5 +277,5 @@ class Trader:
         return trade_result
 
     def run_trader(self):
-        print("Running trader...")
+        # print("Running trader...")
         pass

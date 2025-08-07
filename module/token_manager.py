@@ -430,6 +430,15 @@ class KISWebSocket:
             print("Closing by KeyboardInterrupt")
 
 
+def get_crypto_keys(index=0):
+    """암호화폐 거래를 위한 키 정보 반환"""
+    res = {
+        "APP_KEY": keys["COIN"][index]["APP_KEY"],
+        "SECRET_KEY": keys["COIN"][index]["SECRET_KEY"]
+    }
+    return res
+
+
 ### 테스트 실행부
 if __name__ == "__main__" :
     auth_validate(invest_type=INVEST_TYPE, index=0)
