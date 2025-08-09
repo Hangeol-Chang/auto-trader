@@ -32,17 +32,23 @@
     "PROD": {
         "0" : {
             "APP_TOKEN": "",
-            "TOKEN_EXPIRE_TIME": 0
+            "TOKEN_EXPIRE_TIME": 0,
+            "WS_APPROVAL_KEY" : 0,
+            "WS_TOKEN_EXPIRE_TIME" : 0
         },
         "1" : {
             "APP_TOKEN": "",
-            "TOKEN_EXPIRE_TIME": 0
+            "TOKEN_EXPIRE_TIME": 0,
+            "WS_APPROVAL_KEY" : 0,
+            "WS_TOKEN_EXPIRE_TIME" : 0
         }
     },
     "VPS": {
         "0" : {
             "APP_TOKEN": "",
-            "TOKEN_EXPIRE_TIME" : 0
+            "TOKEN_EXPIRE_TIME" : 0,
+            "WS_APPROVAL_KEY" : 0,
+            "WS_TOKEN_EXPIRE_TIME" : 0
         }
     }
 }

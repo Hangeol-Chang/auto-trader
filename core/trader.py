@@ -8,9 +8,10 @@
 """
 
 import logging
+import time
 import pandas as pd
-from module import stock_data_manager
-from module import stock_orderer
+from module import stock_data_manager, stock_data_manager_ws
+from module import stock_orderer, token_manager
 from strategy.strategy import SignalType
 from strategy import    \
     ma_strategy, \
@@ -38,6 +39,162 @@ SUB_STRATEGIES = {
     "StopLoss":        stop_loss_strategy.StopLoss_strategy,
 }
 
+class I_Trader:
+    """
+        자동 트레이딩 인터페이스
+        
+    """
+    def __init__(self, type="VPS", **kwargs):
+        self.type = type
+        self.orderer = None
+        self.strategy = self.set_strategy(kwargs.get('strategy', None)) 
+    
+    def set_strategy(self, strategy_name):
+        strategy = STRATEGIES.get(strategy_name, None)
+        if strategy is None:
+            raise ValueError(f"Unknown strategy: {strategy_name}")
+        return strategy
+
+    def run(self):
+        """트레이딩 실행"""
+        raise NotImplementedError("트레이딩 실행 메서드는 구현되지 않았습니다.")
+    pass
+
+#####################################################################################
+##################### 주식 백테스트 트레이더 ###########################################
+#####################################################################################
+class Backtest_Trader(I_Trader):
+    '''
+    동작 구조
+        1. 백테스트 실행 후 결과를 db에 저장
+        2. 백테스트 result를 받음 <- 날짜 토큰
+        3. ticker, date 이용해서 그릴 그래프 데이터를 가져옴. <- 일봉 데이터
+        4. 날짜 토큰을 이용해서 db에서 거래내역을 검색.
+        5. 3을 바탕으로 일봉 그래프, strategy를 보고 필요한 subplot을 그림.
+        6. db에서 꺼내온 매수, 매도 신호 시각화.
+
+    '''
+
+    def __init__(self, **kwargs):
+        super().__init__(type="backtest", **kwargs)
+        """
+            백테스트 트레이더 초기화
+            - type : "backtest"로 고정
+        """
+        self.orderer = stock_orderer.BackTest_Orderer()
+        self.strategy = STRATEGIES.get(kwargs.get('strategy', None), None)
+
+        self.start_date = kwargs.get('start_date', None)
+        self.end_date = kwargs.get('end_date', None)
+        
+        self.ticker = kwargs.get('ticker', None)
+
+    def run(self):
+        pass
+
+
+#####################################################################################
+##################### 주식 라이브 트레이더 #############################################
+#####################################################################################
+# KIS - VPS 트레이더
+# KIS - PROD 트레이더
+class Live_Trader(I_Trader):
+    '''
+    동작 구조
+        1. stock finding -> 직접 입력해줄수도 있고, 추후에는 재밌는 종목을 알아서 찾도록 할 예정.
+        2. web_socket을 통해 찾은 stock들의 분봉 정보를 구독.
+        3. stock 데이터들의 previeous 데이터를 검색하고, 이를 dict 하나 만들어서 저장해둠. -> 검색할 때 데이터는 알아서 db에 저장
+        while True:
+            4. 웹소켓 신호를 기다림
+            5. 웹소켓 신호가 오면, 해당 종목의 매수 매도를 알잘딱하게 결정
+            6. 매수 매도 신호가 오면, orderer에 주문을 요청.
+
+            +. 일정 주기로 관심있는 stock을 갱신.
+    '''
+
+
+    def __init__(self, **kwargs):
+        super().__init__(type="live", **kwargs)
+
+        self.kws = token_manager.KISWebSocket(api_url="/tryitout")
+
+        """
+            -> 현재 계좌 정보 업데이트.
+            REST API - get_inquire_balance_obj - 주식잔고조회(현재잔고)
+            REST API - get_inquire_balance_lst - 주식잔고조회(현재종목별 잔고)
+        """
+
+        """
+            사용할 티커 정보 저장.
+        """
+
+        """ 
+            ticker에 맞춰서 데이터 불러와서 저장해두기.
+            REST API
+        """
+
+        pass
+
+    def run(self):
+        self.kws.start(on_result=self.on_result)
+        pass
+
+    def on_result(self, ws, tr_id, result, data_info):
+        """
+            웹소켓에서 받은 결과를 처리하는 메서드
+        """
+        print(f"WebSocket Result - TR ID: {tr_id}, Result: {result}, Data Info: {data_info}")
+        # 여기에 결과 처리 로직을 추가할 수 있습니다.
+        # 실제 처리 진행할 곳.
+
+
+######################################################################################
+##################### 코인 백테스트 트레이더  ###########################################
+######################################################################################
+
+######################################################################################
+##################### 코인 라이브 트레이더 ##############################################
+######################################################################################
+
+from strategy_crypto import test_strategy
+from module import upbit_fetcher, crypto_orderer
+
+import json
+class Live_Crypto_Trader(I_Trader):
+
+    def __init__(self, **kwargs):
+        self.type = "live"
+        self.orderer = crypto_orderer.Live_Orderer()
+        self.strategy = test_strategy.Test_Strategy_Crypto()
+
+        key_index = kwargs.get('index', 0)
+
+        with open('private/keys.json', 'r') as f:
+            keys = json.load(f)
+            self.APP_KEY = keys['COIN'][key_index]['APP_KEY']
+            self.APP_SECRET = keys['COIN'][key_index]['APP_SECRET']
+
+        # 데이터 가져오기.
+        self.set_data()
+
+    def set_data(self):
+        pass
+
+    def run(self):
+        """
+            종목들에 대한 데이터 가져오기.
+        """
+        while True:
+            
+            print("Starting Live Crypto Trader...")
+
+            time.sleep(1)  # 잠시 대기
+    pass
+
+## Legacy
+#######################################################################################
+##################### 트레이더 클래스 ###################################################
+#######################################################################################
 class Trader:
     '''
         호출 순서 : 
@@ -121,5 +278,5 @@ class Trader:
         return trade_result
 
     def run_trader(self):
-        print("Running trader...")
+        # print("Running trader...")
         pass
