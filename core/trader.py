@@ -17,7 +17,8 @@ from strategy import    \
     ma_strategy, \
     macd_strategy, \
     squeeze_momentum_strategy, \
-    rsi_strategy
+    rsi_strategy, \
+    pine_style_strategy
 
 from strategy.sub import \
     stop_loss_strategy
@@ -32,6 +33,8 @@ STRATEGIES = {
     "MACD":             macd_strategy.MACD_strategy,
     "SqueezeMomentum":  squeeze_momentum_strategy.SqueezeMomentum_strategy,
     "RSI":              rsi_strategy.RSI_strategy,
+    "PineRSI":          pine_style_strategy.ExamplePineStrategy,
+    "PineMACD":         pine_style_strategy.PineScriptMACD,
     # 다른 전략들을 여기에 추가할 수 있습니다.
 }
 
