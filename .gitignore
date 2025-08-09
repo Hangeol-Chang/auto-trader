@@ -20,3 +20,5 @@ data/**/*.csv
 data/**/*.json
 
 **/*.db
+
+config/domain.txt
