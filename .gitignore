@@ -22,3 +22,4 @@ data/**/*.json
 **/*.db
 
 config/domain.txt
+PineScript
