@@ -444,9 +444,37 @@ def run_server(host: str = "0.0.0.0", port: int = 5000, debug: bool = False) -> 
 		port: Port to listen on. Defaults to 5000
 		debug: Flask debug mode.
 	"""
-	# Ensure logging is at least configured
+	# 로깅 설정 개선 - 파일과 콘솔 모두에 로그 출력
 	if not logging.getLogger().handlers:
-		logging.basicConfig(level=logging.INFO)
+		# 로그 디렉토리 생성
+		log_dir = Path("logs")
+		log_dir.mkdir(exist_ok=True)
+		
+		# 로그 파일 경로
+		log_file = log_dir / f"server_{datetime.now().strftime('%Y%m%d')}.log"
+		
+		# 로깅 포맷 설정
+		formatter = logging.Formatter(
+			'%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+		)
+		
+		# 파일 핸들러 (로그 파일에 저장)
+		file_handler = logging.FileHandler(log_file, encoding='utf-8')
+		file_handler.setFormatter(formatter)
+		file_handler.setLevel(logging.INFO)
+		
+		# 콘솔 핸들러 (터미널에 출력)
+		console_handler = logging.StreamHandler()
+		console_handler.setFormatter(formatter)
+		console_handler.setLevel(logging.INFO)
+		
+		# 루트 로거에 핸들러 추가
+		root_logger = logging.getLogger()
+		root_logger.setLevel(logging.INFO)
+		root_logger.addHandler(file_handler)
+		root_logger.addHandler(console_handler)
+		
+		log.info("로깅이 설정되었습니다. 로그 파일: %s", log_file)
 
 	# 업비트 API 키 로드
 	read_upbit_keys()
