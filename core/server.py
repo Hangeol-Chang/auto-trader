@@ -19,6 +19,11 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
+import jwt
+import uuid
+import requests
+import hashlib
+from urllib.parse import urlencode, unquote
 
 from flask import Flask, request, jsonify
 
@@ -26,6 +31,199 @@ from flask import Flask, request, jsonify
 log = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+# 업비트 API 키 (전역 변수)
+ACCESS_KEY = ''
+SECRET_KEY = ''
+
+def read_upbit_keys():
+	"""업비트 API 키를 파일에서 읽어옴"""
+	global ACCESS_KEY, SECRET_KEY
+	try:
+		with open('./private/keys.json', 'r') as f:
+			keys = json.load(f)
+			ACCESS_KEY = keys['COIN'][0]['APP_KEY']
+			SECRET_KEY = keys['COIN'][0]['APP_SECRET']
+			log.info("업비트 API 키를 성공적으로 로드했습니다.")
+	except Exception as e:
+		log.error("업비트 API 키 로드 실패: %s", e)
+
+def make_upbit_token(query_params=None):
+	"""업비트 JWT 토큰 생성"""
+	payload = {
+		'access_key': ACCESS_KEY,
+		'nonce': str(uuid.uuid4()),
+	}
+	
+	if query_params:
+		query_string = unquote(urlencode(query_params, doseq=True)).encode("utf-8")
+		m = hashlib.sha512()
+		m.update(query_string)
+		query_hash = m.hexdigest()
+		payload['query_hash'] = query_hash
+		payload['query_hash_alg'] = 'SHA512'
+	
+	jwt_token = jwt.encode(payload, SECRET_KEY, algorithm='HS256')
+	return f'Bearer {jwt_token}'
+
+def get_upbit_balances():
+	"""업비트 잔고 조회"""
+	try:
+		url = 'https://api.upbit.com/v1/accounts'
+		headers = {'Authorization': make_upbit_token()}
+		
+		response = requests.get(url, headers=headers)
+		if response.status_code == 200:
+			return response.json()
+		else:
+			log.error("잔고 조회 실패: %s", response.text)
+			return None
+	except Exception as e:
+		log.error("잔고 조회 중 오류: %s", e)
+		return None
+
+def get_current_price(market):
+	"""특정 마켓의 현재가 조회"""
+	try:
+		url = "https://api.upbit.com/v1/ticker"
+		params = {"markets": market}
+		
+		response = requests.get(url, params=params)
+		if response.status_code == 200:
+			data = response.json()
+			return data[0]['trade_price'] if data else None
+		else:
+			log.error("현재가 조회 실패: %s", response.text)
+			return None
+	except Exception as e:
+		log.error("현재가 조회 중 오류: %s", e)
+		return None
+
+def calculate_total_balance():
+	"""전체 보유 자산 계산 (KRW 기준)"""
+	try:
+		balances = get_upbit_balances()
+		if not balances:
+			return 0
+		
+		total_krw = 0
+		
+		for balance in balances:
+			currency = balance['currency']
+			balance_amount = float(balance['balance'])
+			
+			if currency == 'KRW':
+				total_krw += balance_amount
+			else:
+				# 다른 코인의 경우 KRW 가격으로 환산
+				market = f'KRW-{currency}'
+				current_price = get_current_price(market)
+				if current_price:
+					total_krw += balance_amount * current_price
+		
+		return total_krw
+	except Exception as e:
+		log.error("전체 잔고 계산 중 오류: %s", e)
+		return 0
+
+def place_upbit_order(market, side, volume=None, price=None, ord_type='market'):
+	"""업비트 주문 실행"""
+	try:
+		url = 'https://api.upbit.com/v1/orders'
+		
+		params = {
+			'market': market,
+			'side': side,  # 'bid' (매수) 또는 'ask' (매도)
+			'ord_type': ord_type,  # 'market' (시장가) 또는 'limit' (지정가)
+		}
+		
+		if side == 'bid' and ord_type == 'market':
+			# 매수: 시장가 매수 시 price (총 금액) 사용
+			if price:
+				params['price'] = str(int(price))
+		elif side == 'ask':
+			# 매도: volume (수량) 사용
+			if volume:
+				params['volume'] = str(volume)
+		
+		headers = {'Authorization': make_upbit_token(params)}
+		
+		response = requests.post(url, json=params, headers=headers)
+		if response.status_code == 201:
+			log.info("주문 성공: %s", response.json())
+			return response.json()
+		else:
+			log.error("주문 실패: %s", response.text)
+			return None
+	except Exception as e:
+		log.error("주문 실행 중 오류: %s", e)
+		return None
+
+def execute_buy_signal(ticker):
+	"""매수 신호 실행 - 전체 자산의 20%로 매수"""
+	try:
+		# KRW- 형태로 마켓 코드 생성
+		market = f'KRW-{ticker}' if not ticker.startswith('KRW-') else ticker
+		
+		# 전체 자산의 20% 계산
+		total_balance = calculate_total_balance()
+		buy_amount = total_balance * 0.2
+		
+		# 최소 주문 금액 확인 (업비트 최소 주문 금액: 5000원)
+		if buy_amount < 5000:
+			log.warning("매수 금액이 최소 주문 금액보다 작습니다: %s원", buy_amount)
+			return False
+		
+		# 시장가 매수 주문
+		result = place_upbit_order(market, 'bid', price=buy_amount, ord_type='market')
+		
+		if result:
+			log.info("매수 주문 성공 - 마켓: %s, 금액: %s원", market, buy_amount)
+			return True
+		else:
+			log.error("매수 주문 실패 - 마켓: %s", market)
+			return False
+	except Exception as e:
+		log.error("매수 신호 실행 중 오류: %s", e)
+		return False
+
+def execute_sell_signal(ticker):
+	"""매도 신호 실행 - 해당 코인 전량 매도"""
+	try:
+		# 코인 심볼 추출 (KRW- 제거)
+		coin_symbol = ticker.replace('KRW-', '') if ticker.startswith('KRW-') else ticker
+		
+		# 잔고에서 해당 코인 수량 확인
+		balances = get_upbit_balances()
+		if not balances:
+			log.error("잔고 조회 실패")
+			return False
+		
+		coin_balance = None
+		for balance in balances:
+			if balance['currency'] == coin_symbol:
+				coin_balance = float(balance['balance'])
+				break
+		
+		if not coin_balance or coin_balance <= 0:
+			log.warning("매도할 %s 코인이 없습니다.", coin_symbol)
+			return False
+		
+		# 마켓 코드 생성
+		market = f'KRW-{coin_symbol}'
+		
+		# 시장가 매도 주문
+		result = place_upbit_order(market, 'ask', volume=coin_balance, ord_type='market')
+		
+		if result:
+			log.info("매도 주문 성공 - 마켓: %s, 수량: %s", market, coin_balance)
+			return True
+		else:
+			log.error("매도 주문 실패 - 마켓: %s", market)
+			return False
+	except Exception as e:
+		log.error("매도 신호 실행 중 오류: %s", e)
+		return False
 
 def log_ta_signal_to_file(data: Dict[str, Any] | str, endpoint: str = "ta-signal") -> None:
 	"""Log TradingView signal data to appropriate file based on endpoint.
@@ -125,10 +323,7 @@ def ta_signal_test():
 
 @app.route("/ta-signal", methods=["POST"])
 def ta_signal():
-	"""Receive TradingView webhook payload and log it to file.
-
-	Accepts JSON or raw text. Returns a simple JSON ack.
-	"""
+	"""TradingView에서 웹훅을 받아 업비트 매매 신호 실행"""
 	try:
 		payload: Dict[str, Any] | None = None
 		text_body: str | None = None
@@ -138,16 +333,55 @@ def ta_signal():
 		else:
 			text_body = request.get_data(as_text=True)
 
-		# Log to console
+		# 로그 출력
 		if payload is not None:
 			log.info("[TA] JSON payload: %s", json.dumps(payload, ensure_ascii=False))
 			print("[TA] JSON payload:", json.dumps(payload, ensure_ascii=False))
-			# Log to file
+			
+			# 파일에 로그 저장
 			log_ta_signal_to_file(payload, "ta-signal")
+			
+			# JSON 데이터에서 매매 신호 추출 및 실행
+			try:
+				ticker = payload.get("instrument", {}).get("ticker", "")
+				action = payload.get("order", {}).get("action", "").lower()
+				
+				if not ticker:
+					log.warning("티커 정보가 없습니다.")
+					return jsonify({"status": "error", "message": "Missing ticker"}), 400
+				
+				if not action:
+					log.warning("액션 정보가 없습니다.")
+					return jsonify({"status": "error", "message": "Missing action"}), 400
+				
+				log.info("매매 신호 처리: 티커=%s, 액션=%s", ticker, action)
+				
+				if action == "buy":
+					success = execute_buy_signal(ticker)
+					if success:
+						return jsonify({"status": "ok", "message": f"Buy order executed for {ticker}"}), 200
+					else:
+						return jsonify({"status": "error", "message": f"Buy order failed for {ticker}"}), 500
+				
+				elif action == "sell":
+					success = execute_sell_signal(ticker)
+					if success:
+						return jsonify({"status": "ok", "message": f"Sell order executed for {ticker}"}), 200
+					else:
+						return jsonify({"status": "error", "message": f"Sell order failed for {ticker}"}), 500
+				
+				else:
+					log.warning("알 수 없는 액션: %s", action)
+					return jsonify({"status": "ok", "message": f"Unknown action: {action}"}), 200
+					
+			except Exception as trading_error:
+				log.error("매매 신호 처리 중 오류: %s", trading_error)
+				return jsonify({"status": "error", "message": f"Trading error: {str(trading_error)}"}), 500
+			
 		else:
 			log.info("[TA] Text payload: %s", text_body)
 			print("[TA] Text payload:", text_body)
-			# Log to file
+			# 파일에 로그 저장
 			log_ta_signal_to_file(text_body or "", "ta-signal")
 
 		return jsonify({"status": "ok"}), 200
@@ -159,6 +393,22 @@ def ta_signal():
 @app.route("/health", methods=["GET"])  # simple liveness probe
 def health():
 	return jsonify({"status": "up"}), 200
+
+@app.route("/test-balance", methods=["GET"])
+def test_balance():
+	"""업비트 잔고 조회 테스트"""
+	try:
+		balances = get_upbit_balances()
+		total_balance = calculate_total_balance()
+		
+		return jsonify({
+			"status": "ok", 
+			"balances": balances,
+			"total_balance_krw": total_balance
+		}), 200
+	except Exception as e:
+		log.error("잔고 조회 테스트 중 오류: %s", e)
+		return jsonify({"status": "error", "message": str(e)}), 500
 
 
 def _get_ssl_context():
@@ -197,6 +447,9 @@ def run_server(host: str = "0.0.0.0", port: int = 5000, debug: bool = False) -> 
 	# Ensure logging is at least configured
 	if not logging.getLogger().handlers:
 		logging.basicConfig(level=logging.INFO)
+
+	# 업비트 API 키 로드
+	read_upbit_keys()
 
 	ssl_context = _get_ssl_context()
 	scheme = "HTTPS" if ssl_context else "HTTP"
