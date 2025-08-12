@@ -27,20 +27,22 @@ log = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-def log_ta_signal_to_file(data: Dict[str, Any] | str) -> None:
-	"""Log TradingView signal data to /data/ta-signal.txt file.
+def log_ta_signal_to_file(data: Dict[str, Any] | str, endpoint: str = "ta-signal") -> None:
+	"""Log TradingView signal data to appropriate file based on endpoint.
 	
 	Args:
 		data: Either JSON dict or string data from TradingView webhook
+		endpoint: The endpoint name to determine the log file (ta-signal or ta-signal-test)
 	"""
 	try:
 		# Create data directory if it doesn't exist
 		data_dir = Path("data")
 		data_dir.mkdir(exist_ok=True)
 		
-		# Create log file path
-		log_file = data_dir / "ta-signal.txt"
 		
+		# Create log file path based on endpoint
+		log_file = data_dir / (endpoint + ".txt")
+
 		# Get current timestamp
 		timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 		
@@ -91,7 +93,7 @@ def log_ta_signal_to_file(data: Dict[str, Any] | str) -> None:
 """
 @app.route("/ta-signal-test", methods=["POST"])
 def ta_signal_test():
-	"""Receive TradingView webhook payload and print it.
+	"""Receive TradingView webhook payload and log it to file.
 
 	Accepts JSON or raw text. Returns a simple JSON ack.
 	"""
@@ -104,17 +106,21 @@ def ta_signal_test():
 		else:
 			text_body = request.get_data(as_text=True)
 
-		# Print in a readable way
+		# Log to console
 		if payload is not None:
-			log.info("[TA] JSON payload: %s", json.dumps(payload, ensure_ascii=False))
-			print("[TA] JSON payload:", json.dumps(payload, ensure_ascii=False))
+			log.info("[TA-TEST] JSON payload: %s", json.dumps(payload, ensure_ascii=False))
+			print("[TA-TEST] JSON payload:", json.dumps(payload, ensure_ascii=False))
+			# Log to file
+			log_ta_signal_to_file(payload, "ta-signal-test")
 		else:
-			log.info("[TA] Text payload: %s", text_body)
-			print("[TA] Text payload:", text_body)
+			log.info("[TA-TEST] Text payload: %s", text_body)
+			print("[TA-TEST] Text payload:", text_body)
+			# Log to file
+			log_ta_signal_to_file(text_body or "", "ta-signal-test")
 
 		return jsonify({"status": "ok"}), 200
 	except Exception as e:
-		log.exception("Error handling /ta-signal: %s", e)
+		log.exception("Error handling /ta-signal-test: %s", e)
 		return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/ta-signal", methods=["POST"])
@@ -137,12 +143,12 @@ def ta_signal():
 			log.info("[TA] JSON payload: %s", json.dumps(payload, ensure_ascii=False))
 			print("[TA] JSON payload:", json.dumps(payload, ensure_ascii=False))
 			# Log to file
-			log_ta_signal_to_file(payload)
+			log_ta_signal_to_file(payload, "ta-signal")
 		else:
 			log.info("[TA] Text payload: %s", text_body)
 			print("[TA] Text payload:", text_body)
 			# Log to file
-			log_ta_signal_to_file(text_body or "")
+			log_ta_signal_to_file(text_body or "", "ta-signal")
 
 		return jsonify({"status": "ok"}), 200
 	except Exception as e:

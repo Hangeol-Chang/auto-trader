@@ -23,3 +23,5 @@ data/**/*.json
 
 config/domain.txt
 PineScript
+
+data/ta-*.txt
