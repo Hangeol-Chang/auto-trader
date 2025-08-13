@@ -36,6 +36,9 @@ app = Flask(__name__)
 ACCESS_KEY = ''
 SECRET_KEY = ''
 
+# 마켓 정보 캐시 (서버 시작 시 한 번만 로드)
+MARKET_INFO_CACHE = {}
+
 def read_upbit_keys():
 	"""업비트 API 키를 파일에서 읽어옴"""
 	global ACCESS_KEY, SECRET_KEY
@@ -48,29 +51,98 @@ def read_upbit_keys():
 	except Exception as e:
 		log.error("업비트 API 키 로드 실패: %s", e)
 
+def load_upbit_markets():
+	"""업비트 마켓 정보를 로드하고 캐시에 저장"""
+	global MARKET_INFO_CACHE
+	try:
+		url = "https://api.upbit.com/v1/market/all?is_details=true"
+		headers = {"accept": "application/json"}
+		
+		response = requests.get(url, headers=headers)
+		if response.status_code == 200:
+			markets = response.json()
+			
+			# 심볼별로 마켓 정보를 매핑
+			for market in markets:
+				market_code = market['market']  # 예: KRW-BTC
+				if market_code.startswith('KRW-'):
+					symbol = market_code.replace('KRW-', '')  # BTC
+					MARKET_INFO_CACHE[symbol.upper()] = {
+						'market': market_code,
+						'korean_name': market.get('korean_name', ''),
+						'english_name': market.get('english_name', '')
+					}
+			
+			log.info("업비트 마켓 정보 로드 완료: %d개 마켓", len(MARKET_INFO_CACHE))
+			return True
+		else:
+			log.error("마켓 정보 로드 실패: %s", response.text)
+			return False
+	except Exception as e:
+		log.error("마켓 정보 로드 중 오류: %s", e)
+		return False
+
+def find_market_by_ticker(ticker):
+	"""티커 심볼로 업비트 마켓 코드 찾기"""
+	ticker_upper = ticker.upper()
+	
+	# 이미 KRW- 형태인 경우
+	if ticker_upper.startswith('KRW-'):
+		return ticker_upper
+	
+	# 캐시에서 찾기
+	if ticker_upper in MARKET_INFO_CACHE:
+		market_info = MARKET_INFO_CACHE[ticker_upper]
+		log.info("티커 %s -> 마켓 %s (%s)", ticker, market_info['market'], market_info['korean_name'])
+		return market_info['market']
+	
+	# 찾지 못한 경우
+	log.warning("티커 '%s'에 해당하는 업비트 마켓을 찾을 수 없습니다.", ticker)
+	log.info("지원 가능한 티커: %s", list(MARKET_INFO_CACHE.keys())[:10])  # 처음 10개만 표시
+	return None
+
+def get_available_tickers():
+	"""사용 가능한 티커 목록 반환"""
+	return list(MARKET_INFO_CACHE.keys())
+
 def make_upbit_token(query_params=None):
 	"""업비트 JWT 토큰 생성"""
-	payload = {
-		'access_key': ACCESS_KEY,
-		'nonce': str(uuid.uuid4()),
-	}
-	
-	if query_params:
-		query_string = unquote(urlencode(query_params, doseq=True)).encode("utf-8")
-		m = hashlib.sha512()
-		m.update(query_string)
-		query_hash = m.hexdigest()
-		payload['query_hash'] = query_hash
-		payload['query_hash_alg'] = 'SHA512'
-	
-	jwt_token = jwt.encode(payload, SECRET_KEY, algorithm='HS256')
-	return f'Bearer {jwt_token}'
+	try:
+		payload = {
+			'access_key': ACCESS_KEY,
+			'nonce': str(uuid.uuid4()),
+		}
+		
+		if query_params:
+			query_string = unquote(urlencode(query_params, doseq=True)).encode("utf-8")
+			m = hashlib.sha512()
+			m.update(query_string)
+			query_hash = m.hexdigest()
+			payload['query_hash'] = query_hash
+			payload['query_hash_alg'] = 'SHA512'
+		
+		# PyJWT 2.0+ 호환성을 위한 수정
+		jwt_token = jwt.encode(payload, SECRET_KEY, algorithm='HS256')
+		
+		# PyJWT 2.0+에서는 문자열을 반환하므로 추가 처리 불필요
+		if isinstance(jwt_token, bytes):
+			jwt_token = jwt_token.decode('utf-8')
+			
+		return f'Bearer {jwt_token}'
+	except Exception as e:
+		log.error("JWT 토큰 생성 중 오류: %s", e)
+		return None
 
 def get_upbit_balances():
 	"""업비트 잔고 조회"""
 	try:
 		url = 'https://api.upbit.com/v1/accounts'
-		headers = {'Authorization': make_upbit_token()}
+		token = make_upbit_token()
+		if not token:
+			log.error("JWT 토큰 생성 실패")
+			return None
+			
+		headers = {'Authorization': token}
 		
 		response = requests.get(url, headers=headers)
 		if response.status_code == 200:
@@ -134,19 +206,27 @@ def place_upbit_order(market, side, volume=None, price=None, ord_type='market'):
 		params = {
 			'market': market,
 			'side': side,  # 'bid' (매수) 또는 'ask' (매도)
-			'ord_type': ord_type,  # 'market' (시장가) 또는 'limit' (지정가)
 		}
 		
-		if side == 'bid' and ord_type == 'market':
-			# 매수: 시장가 매수 시 price (총 금액) 사용
+		if side == 'bid':
+			# 매수: 업비트에서는 시장가 매수 시 ord_type을 'price'로 설정
+			params['ord_type'] = 'price'
 			if price:
 				params['price'] = str(int(price))
 		elif side == 'ask':
-			# 매도: volume (수량) 사용
+			# 매도: 시장가 매도 시 ord_type을 'market'으로 설정
+			params['ord_type'] = 'market'
 			if volume:
 				params['volume'] = str(volume)
 		
-		headers = {'Authorization': make_upbit_token(params)}
+		log.info("주문 파라미터: %s", params)
+		
+		token = make_upbit_token(params)
+		if not token:
+			log.error("JWT 토큰 생성 실패 - 주문 취소")
+			return None
+			
+		headers = {'Authorization': token}
 		
 		response = requests.post(url, json=params, headers=headers)
 		if response.status_code == 201:
@@ -162,20 +242,29 @@ def place_upbit_order(market, side, volume=None, price=None, ord_type='market'):
 def execute_buy_signal(ticker):
 	"""매수 신호 실행 - 전체 자산의 20%로 매수"""
 	try:
-		# KRW- 형태로 마켓 코드 생성
-		market = f'KRW-{ticker}' if not ticker.startswith('KRW-') else ticker
+		# 티커로 정확한 마켓 코드 찾기
+		market = find_market_by_ticker(ticker)
+		if not market:
+			log.error("매수 실패: 티커 '%s'에 해당하는 마켓을 찾을 수 없습니다.", ticker)
+			return False
 		
 		# 전체 자산의 20% 계산
 		total_balance = calculate_total_balance()
 		buy_amount = total_balance * 0.2
 		
-		# 최소 주문 금액 확인 (업비트 최소 주문 금액: 5000원)
-		if buy_amount < 5000:
-			log.warning("매수 금액이 최소 주문 금액보다 작습니다: %s원", buy_amount)
+		# 업비트 최소 주문 금액 확인 (5000원)
+		min_order_amount = 5000
+		if buy_amount < min_order_amount:
+			log.warning("매수 금액이 최소 주문 금액보다 작습니다: %s원 (최소: %s원)", buy_amount, min_order_amount)
 			return False
 		
-		# 시장가 매수 주문
-		result = place_upbit_order(market, 'bid', price=buy_amount, ord_type='market')
+		# 주문 금액을 원 단위로 반올림
+		buy_amount = round(buy_amount)
+		
+		log.info("매수 신호 처리 - 티커: %s, 마켓: %s, 금액: %s원", ticker, market, buy_amount)
+		
+		# 시장가 매수 주문 (업비트에서는 ord_type='price' 사용)
+		result = place_upbit_order(market, 'bid', price=buy_amount)
 		
 		if result:
 			log.info("매수 주문 성공 - 마켓: %s, 금액: %s원", market, buy_amount)
@@ -190,8 +279,14 @@ def execute_buy_signal(ticker):
 def execute_sell_signal(ticker):
 	"""매도 신호 실행 - 해당 코인 전량 매도"""
 	try:
+		# 티커로 정확한 마켓 코드 찾기
+		market = find_market_by_ticker(ticker)
+		if not market:
+			log.error("매도 실패: 티커 '%s'에 해당하는 마켓을 찾을 수 없습니다.", ticker)
+			return False
+		
 		# 코인 심볼 추출 (KRW- 제거)
-		coin_symbol = ticker.replace('KRW-', '') if ticker.startswith('KRW-') else ticker
+		coin_symbol = market.replace('KRW-', '')
 		
 		# 잔고에서 해당 코인 수량 확인
 		balances = get_upbit_balances()
@@ -206,14 +301,22 @@ def execute_sell_signal(ticker):
 				break
 		
 		if not coin_balance or coin_balance <= 0:
-			log.warning("매도할 %s 코인이 없습니다.", coin_symbol)
+			log.warning("매도할 %s 코인이 없습니다. (잔고: %s)", coin_symbol, coin_balance)
 			return False
 		
-		# 마켓 코드 생성
-		market = f'KRW-{coin_symbol}'
+		# 최소 매도 수량 확인 (매우 작은 수량은 매도 불가)
+		current_price = get_current_price(market)
+		if current_price:
+			estimated_value = coin_balance * current_price
+			if estimated_value < 1000:  # 1000원 미만은 매도하지 않음
+				log.warning("매도 예상 금액이 너무 작습니다: %s원 (수량: %s %s)", 
+						   estimated_value, coin_balance, coin_symbol)
+				return False
 		
-		# 시장가 매도 주문
-		result = place_upbit_order(market, 'ask', volume=coin_balance, ord_type='market')
+		log.info("매도 신호 처리 - 티커: %s, 마켓: %s, 수량: %s", ticker, market, coin_balance)
+		
+		# 시장가 매도 주문 (업비트에서는 ord_type='market' 사용)
+		result = place_upbit_order(market, 'ask', volume=coin_balance)
 		
 		if result:
 			log.info("매도 주문 성공 - 마켓: %s, 수량: %s", market, coin_balance)
@@ -288,6 +391,7 @@ def log_ta_signal_to_file(data: Dict[str, Any] | str, endpoint: str = "ta-signal
 		"new_size": "{{strategy.position_size}}"
 	}
 }
+
 """
 @app.route("/ta-signal-test", methods=["POST"])
 def ta_signal_test():
@@ -321,6 +425,26 @@ def ta_signal_test():
 		log.exception("Error handling /ta-signal-test: %s", e)
 		return jsonify({"status": "error", "message": str(e)}), 500
 
+
+"""
+curl -X POST http://localhost:5000/ta-signal \
+  -H "Content-Type: application/json" \
+  -d '{
+    "strategy": {
+      "name": "Test Strategy"
+    },
+    "instrument": {
+      "ticker": "BTC"
+    },
+    "order": {
+      "action": "buy",
+      "quantity": "1"
+    },
+    "position": {
+      "new_size": "1"
+    }
+  }'
+"""
 @app.route("/ta-signal", methods=["POST"])
 def ta_signal():
 	"""TradingView에서 웹훅을 받아 업비트 매매 신호 실행"""
@@ -410,6 +534,31 @@ def test_balance():
 		log.error("잔고 조회 테스트 중 오류: %s", e)
 		return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route("/markets", methods=["GET"])
+def get_markets():
+	"""지원 가능한 마켓 및 티커 목록 조회"""
+	try:
+		available_tickers = get_available_tickers()
+		market_details = {}
+		
+		# 상위 20개 주요 코인만 상세 정보 포함
+		major_tickers = ['BTC', 'ETH', 'XRP', 'ADA', 'DOT', 'LINK', 'LTC', 'BCH', 'EOS', 'TRX', 
+						'ETC', 'ATOM', 'BAT', 'ENJ', 'KNC', 'MANA', 'SAND', 'AXS', 'CHZ', 'FLOW']
+		
+		for ticker in major_tickers:
+			if ticker in MARKET_INFO_CACHE:
+				market_details[ticker] = MARKET_INFO_CACHE[ticker]
+		
+		return jsonify({
+			"status": "ok",
+			"total_markets": len(available_tickers),
+			"all_tickers": sorted(available_tickers),
+			"major_markets": market_details
+		}), 200
+	except Exception as e:
+		log.error("마켓 조회 중 오류: %s", e)
+		return jsonify({"status": "error", "message": str(e)}), 500
+
 
 def _get_ssl_context():
 	"""Return an SSL context tuple or 'adhoc' if configured; otherwise None.
@@ -478,6 +627,13 @@ def run_server(host: str = "0.0.0.0", port: int = 5000, debug: bool = False) -> 
 
 	# 업비트 API 키 로드
 	read_upbit_keys()
+	
+	# 업비트 마켓 정보 로드
+	log.info("업비트 마켓 정보를 로드 중입니다...")
+	if load_upbit_markets():
+		log.info("마켓 정보 로드 완료. 지원 가능한 티커 수: %d", len(MARKET_INFO_CACHE))
+	else:
+		log.warning("마켓 정보 로드 실패. 티커 매칭이 제한될 수 있습니다.")
 
 	ssl_context = _get_ssl_context()
 	scheme = "HTTPS" if ssl_context else "HTTP"

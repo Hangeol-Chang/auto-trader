@@ -1,0 +1,96 @@
+{
+  "name": "TradingView ta-signal 테스트 모음",
+  "requests": [
+    {
+      "name": "매수 신호 - BTC",
+      "method": "POST",
+      "url": "http://localhost:5000/ta-signal",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "strategy": {
+          "name": "SMI/RSI",
+          "settings": {
+            "source": "[B]",
+            "parameters": "20, 20, 1.5, 14, 5, 2"
+          }
+        },
+        "instrument": {
+          "ticker": "BTC"
+        },
+        "order": {
+          "action": "buy",
+          "quantity": "1"
+        },
+        "position": {
+          "new_size": "1"
+        }
+      }
+    },
+    {
+      "name": "매도 신호 - BTC",
+      "method": "POST",
+      "url": "http://localhost:5000/ta-signal",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "strategy": {
+          "name": "SMI/RSI",
+          "settings": {
+            "source": "[S]",
+            "parameters": "20, 20, 1.5, 14, 5, 2"
+          }
+        },
+        "instrument": {
+          "ticker": "BTC"
+        },
+        "order": {
+          "action": "sell",
+          "quantity": "1"
+        },
+        "position": {
+          "new_size": "0"
+        }
+      }
+    },
+    {
+      "name": "매수 신호 - ETH",
+      "method": "POST",
+      "url": "http://localhost:5000/ta-signal",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "strategy": {
+          "name": "Test Strategy",
+          "settings": {
+            "source": "[B]",
+            "parameters": "20, 20, 1.5, 14, 5, 2"
+          }
+        },
+        "instrument": {
+          "ticker": "ETH"
+        },
+        "order": {
+          "action": "buy",
+          "quantity": "0.5"
+        },
+        "position": {
+          "new_size": "0.5"
+        }
+      }
+    },
+    {
+      "name": "서버 상태 확인",
+      "method": "GET",
+      "url": "http://localhost:5000/health"
+    },
+    {
+      "name": "잔고 조회 테스트",
+      "method": "GET", 
+      "url": "http://localhost:5000/test-balance"
+    }
+  ]
+}
