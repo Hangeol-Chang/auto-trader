@@ -39,6 +39,11 @@ SECRET_KEY = ''
 # 마켓 정보 캐시 (서버 시작 시 한 번만 로드)
 MARKET_INFO_CACHE = {}
 
+# 매매 전략 설정
+MAX_POSITION_RATIO = 0.2  # 각 종목 최대 비중 (20%)
+MIN_ORDER_AMOUNT = 5000   # 최소 주문 금액 (원)
+MIN_SELL_VALUE = 1000     # 최소 매도 가치 (원)
+
 def read_upbit_keys():
 	"""업비트 API 키를 파일에서 읽어옴"""
 	global ACCESS_KEY, SECRET_KEY
@@ -240,7 +245,7 @@ def place_upbit_order(market, side, volume=None, price=None, ord_type='market'):
 		return None
 
 def execute_buy_signal(ticker):
-	"""매수 신호 실행 - 전체 자산의 20%로 매수"""
+	"""매수 신호 실행 - 해당 종목이 전체 자산의 20%를 넘지 않도록 매수"""
 	try:
 		# 티커로 정확한 마켓 코드 찾기
 		market = find_market_by_ticker(ticker)
@@ -248,26 +253,68 @@ def execute_buy_signal(ticker):
 			log.error("매수 실패: 티커 '%s'에 해당하는 마켓을 찾을 수 없습니다.", ticker)
 			return False
 		
-		# 전체 자산의 20% 계산
-		total_balance = calculate_total_balance()
-		buy_amount = total_balance * 0.2
+		# 코인 심볼 추출
+		coin_symbol = market.replace('KRW-', '')
 		
-		# 업비트 최소 주문 금액 확인 (5000원)
-		min_order_amount = 5000
-		if buy_amount < min_order_amount:
-			log.warning("매수 금액이 최소 주문 금액보다 작습니다: %s원 (최소: %s원)", buy_amount, min_order_amount)
+		# 전체 자산 계산
+		total_balance = calculate_total_balance()
+		target_percentage = MAX_POSITION_RATIO  # 설정된 최대 비중 사용
+		target_amount = total_balance * target_percentage
+		
+		log.info("전체 자산: %s원, 목표 비중: %s%% (%s원)", total_balance, target_percentage*100, target_amount)
+		
+		# 현재 해당 코인 보유량 확인
+		balances = get_upbit_balances()
+		current_coin_balance = 0
+		current_coin_value = 0
+		
+		if balances:
+			for balance in balances:
+				if balance['currency'] == coin_symbol:
+					current_coin_balance = float(balance['balance'])
+					break
+		
+		# 현재 코인 가치 계산
+		if current_coin_balance > 0:
+			current_price = get_current_price(market)
+			if current_price:
+				current_coin_value = current_coin_balance * current_price
+				log.info("현재 %s 보유량: %s개, 가치: %s원", coin_symbol, current_coin_balance, current_coin_value)
+			else:
+				log.error("현재가 조회 실패")
+				return False
+		else:
+			log.info("현재 %s 보유량: 0개", coin_symbol)
+		
+		# 추가로 매수할 수 있는 금액 계산
+		available_buy_amount = target_amount - current_coin_value
+		
+		if available_buy_amount <= 0:
+			log.warning("이미 %s가 목표 비중(%s%%)을 달성했습니다. 현재 가치: %s원, 목표: %s원", 
+					   coin_symbol, target_percentage*100, current_coin_value, target_amount)
+			return False
+		
+		# 업비트 최소 주문 금액 확인
+		if available_buy_amount < MIN_ORDER_AMOUNT:
+			log.warning("매수 가능 금액이 최소 주문 금액보다 작습니다: %s원 (최소: %s원)", 
+					   available_buy_amount, MIN_ORDER_AMOUNT)
 			return False
 		
 		# 주문 금액을 원 단위로 반올림
-		buy_amount = round(buy_amount)
+		buy_amount = round(available_buy_amount)
 		
-		log.info("매수 신호 처리 - 티커: %s, 마켓: %s, 금액: %s원", ticker, market, buy_amount)
+		log.info("매수 신호 처리 - 티커: %s, 마켓: %s", ticker, market)
+		log.info("현재 보유 가치: %s원, 목표 가치: %s원, 매수 금액: %s원", 
+				current_coin_value, target_amount, buy_amount)
 		
 		# 시장가 매수 주문 (업비트에서는 ord_type='price' 사용)
 		result = place_upbit_order(market, 'bid', price=buy_amount)
 		
 		if result:
 			log.info("매수 주문 성공 - 마켓: %s, 금액: %s원", market, buy_amount)
+			log.info("매수 후 예상 %s 가치: %s원 (전체 자산 대비 %s%%)", 
+					coin_symbol, current_coin_value + buy_amount, 
+					((current_coin_value + buy_amount) / total_balance) * 100)
 			return True
 		else:
 			log.error("매수 주문 실패 - 마켓: %s", market)
@@ -308,9 +355,9 @@ def execute_sell_signal(ticker):
 		current_price = get_current_price(market)
 		if current_price:
 			estimated_value = coin_balance * current_price
-			if estimated_value < 1000:  # 1000원 미만은 매도하지 않음
-				log.warning("매도 예상 금액이 너무 작습니다: %s원 (수량: %s %s)", 
-						   estimated_value, coin_balance, coin_symbol)
+			if estimated_value < MIN_SELL_VALUE:  # 설정된 최소 매도 가치 사용
+				log.warning("매도 예상 금액이 너무 작습니다: %s원 (수량: %s %s, 최소: %s원)", 
+						   estimated_value, coin_balance, coin_symbol, MIN_SELL_VALUE)
 				return False
 		
 		log.info("매도 신호 처리 - 티커: %s, 마켓: %s, 수량: %s", ticker, market, coin_balance)
@@ -557,6 +604,28 @@ def get_markets():
 		}), 200
 	except Exception as e:
 		log.error("마켓 조회 중 오류: %s", e)
+		return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/trading-config", methods=["GET"])
+def get_trading_config():
+	"""현재 매매 전략 설정값 조회"""
+	try:
+		return jsonify({
+			"status": "ok",
+			"config": {
+				"max_position_ratio": MAX_POSITION_RATIO,
+				"max_position_percentage": f"{MAX_POSITION_RATIO * 100}%",
+				"min_order_amount": MIN_ORDER_AMOUNT,
+				"min_sell_value": MIN_SELL_VALUE
+			},
+			"description": {
+				"max_position_ratio": "각 종목 최대 비중 (전체 자산 대비)",
+				"min_order_amount": "최소 주문 금액 (원)",
+				"min_sell_value": "최소 매도 가치 (원)"
+			}
+		}), 200
+	except Exception as e:
+		log.error("설정 조회 중 오류: %s", e)
 		return jsonify({"status": "error", "message": str(e)}), 500
 
 
