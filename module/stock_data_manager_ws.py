@@ -57,7 +57,7 @@ def asking_price(
         "tr_key": tr_key,
     }
 
-    msg = ka.data_fetch(tr_id, tr_type, params)
+    msg = kis_fetcher.data_fetch(tr_id, tr_type, params)
 
     columns = [
         "symb",

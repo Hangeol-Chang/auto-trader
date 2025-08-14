@@ -185,8 +185,7 @@ class Live_Crypto_Trader(I_Trader):
             종목들에 대한 데이터 가져오기.
         """
         while True:
-            
-            print("Starting Live Crypto Trader...")
+            # print("Running Live Crypto Trader...")
 
             time.sleep(1)  # 잠시 대기
     pass

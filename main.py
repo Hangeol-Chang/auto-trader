@@ -5,15 +5,15 @@ import logging
 import signal
 import sys
 
-from core import visualizer, trader
+from core import visualizer, trader, server
 from module import stock_data_manager
 
 # INVEST_TYPE = "PROD"  # 실전투자
 INVEST_TYPE = "VPS"    # 모의투자
 
 # 각 프로세스 별 실행 여부
-RUN_FLASK = False
-RUN_TRADER = True
+RUN_FLASK = True
+RUN_TRADER = False
 
 # 전역 종료 플래그
 shutdown_event = threading.Event()
@@ -38,7 +38,9 @@ def run_flask_server():
     """플라스크 서버 실행"""
     try:
         print("Starting Flask server...")
-        visualizer.run_server()
+        # visualizer.run_server()
+        server.run_server()
+        
     except Exception as e:
         print(f"Flask server error: {e}")
 
