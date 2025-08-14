@@ -95,7 +95,22 @@ def find_market_by_ticker(ticker):
 	if ticker_upper.startswith('KRW-'):
 		return ticker_upper
 	
-	# 캐시에서 찾기
+	# BTCKRW, ETHKRW 형태를 KRW-BTC, KRW-ETH로 변환
+	if ticker_upper.endswith('KRW'):
+		base_symbol = ticker_upper.replace('KRW', '')
+		converted_market = f'KRW-{base_symbol}'
+		log.info("티커 %s -> %s 형태로 변환", ticker, converted_market)
+		
+		# 변환된 마켓이 실제로 존재하는지 확인
+		if base_symbol in MARKET_INFO_CACHE:
+			market_info = MARKET_INFO_CACHE[base_symbol]
+			log.info("티커 %s -> 마켓 %s (%s)", ticker, market_info['market'], market_info['korean_name'])
+			return market_info['market']
+		else:
+			log.warning("변환된 티커 '%s'에 해당하는 업비트 마켓을 찾을 수 없습니다.", base_symbol)
+			return None
+	
+	# 기본 티커 형태 (BTC, ETH 등)
 	if ticker_upper in MARKET_INFO_CACHE:
 		market_info = MARKET_INFO_CACHE[ticker_upper]
 		log.info("티커 %s -> 마켓 %s (%s)", ticker, market_info['market'], market_info['korean_name'])

@@ -13,7 +13,7 @@ import time
 # 서버 URL 설정
 SERVER_URL = "http://localhost:5000"
 
-def test_buy_signal(ticker="BTC"):
+def test_buy_signal(ticker="BTCKRW"):
     """매수 신호 테스트"""
     url = f"{SERVER_URL}/ta-signal"
     
@@ -49,7 +49,7 @@ def test_buy_signal(ticker="BTC"):
         print(f"요청 실패: {e}")
         return False
 
-def test_sell_signal(ticker="BTC"):
+def test_sell_signal(ticker="BTCKRW"):
     """매도 신호 테스트"""
     url = f"{SERVER_URL}/ta-signal"
     
@@ -89,7 +89,7 @@ def test_text_signal():
     """텍스트 형태 신호 테스트"""
     url = f"{SERVER_URL}/ta-signal"
     
-    text_data = "BTC BUY SIGNAL - Test from script"
+    text_data = "BTCKRW BUY SIGNAL - Test from script"
     
     print(f"\n=== 텍스트 신호 테스트 ===")
     print("전송 데이터:", text_data)
@@ -154,24 +154,24 @@ def main():
     
     # 3. 매수 신호 테스트
     print("\n" + "="*50)
-    test_buy_signal("BTC")
+    test_buy_signal("BTCKRW")
     
     time.sleep(2)  # 잠시 대기
     
     # 4. 매도 신호 테스트
     print("\n" + "="*50)
-    test_sell_signal("BTC")
+    test_sell_signal("BTCKRW")
     
     time.sleep(2)  # 잠시 대기
     
     # 5. 다른 코인으로 테스트
     print("\n" + "="*50)
-    test_buy_signal("ETH")
+    test_buy_signal("ETHKRW")
     
     # 6. 텍스트 신호 테스트
     print("\n" + "="*50)
     test_text_signal()
-    
+        
     print("\n" + "="*50)
     print("테스트 완료!")
     print("\n로그 확인:")
