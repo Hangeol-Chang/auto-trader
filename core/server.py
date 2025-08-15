@@ -1,9 +1,11 @@
-"""Simple webhook server for TradingView signals.
+"""Modular webhook server for TradingView signals and Discord bot.
 
-Exposes POST /ta-signal and prints incoming payloads.
-Intended to be started from main.py via server.run_server().
+Modular Flask server with separate API blueprints for:
+- TradingView webhooks
+- Discord bot integration
+- Trading operations
 
-Port: 443 (HTTPS if certs provided or adhoc enabled; otherwise HTTP)
+Port: 5000 (HTTPS if certs provided or adhoc enabled; otherwise HTTP)
 
 Environment variables (optional):
 - SSL_CERT_FILE: path to TLS certificate (PEM)
@@ -13,12 +15,15 @@ Environment variables (optional):
 
 from __future__ import annotations
 
-import json
 import logging
 import os
-from typing import Any, Dict
 
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify, send_from_directory
+
+# API Blueprints import
+from .api.discord_api import discord_bp
+from .api.tradingview_api import tradingview_bp
+from .api.trading_api import trading_bp
 
 # 모듈 import
 import sys
@@ -27,224 +32,100 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from module.upbit_api import UpbitAPI
 from module.trading_executor import TradingExecutor
-from module.logging_utils import SignalLogger, setup_server_logging
+from module.logging_utils import setup_server_logging
 
 log = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# 전역 인스턴스
+# Blueprint 등록
+app.register_blueprint(discord_bp)
+app.register_blueprint(tradingview_bp)
+app.register_blueprint(trading_bp)
+
+# 전역 인스턴스 (레거시 호환성을 위해 유지)
 upbit_api = UpbitAPI()
 trading_executor = TradingExecutor(upbit_api)
-signal_logger = SignalLogger()
 
 
-"""
-메세지 형태.
-{
-	"strategy": {
-		"name": "SMI/RSI",
-		"settings": {
-			"source": "[B]",
-			"parameters": "20, 20, 1.5, 14, 5, 2"
-		}
-	},
-	"instrument": {
-		"ticker": "{{ticker}}"
-	},
-	"order": {
-		"action": "{{strategy.order.action}}",
-		"quantity": "{{strategy.order.contracts}}"
-	},
-	"position": {
-		"new_size": "{{strategy.position_size}}"
-	}
-}
-
-"""
-@app.route("/ta-signal-test", methods=["POST"])
-def ta_signal_test():
-	"""Receive TradingView webhook payload and log it to file.
-
-	Accepts JSON or raw text. Returns a simple JSON ack.
-	"""
-	try:
-		payload: Dict[str, Any] | None = None
-		text_body: str | None = None
-
-		if request.is_json:
-			payload = request.get_json(silent=True)
-		else:
-			text_body = request.get_data(as_text=True)
-
-		# Log to console
-		if payload is not None:
-			log.info("[TA-TEST] JSON payload: %s", json.dumps(payload, ensure_ascii=False))
-			print("[TA-TEST] JSON payload:", json.dumps(payload, ensure_ascii=False))
-			# Log to file
-			signal_logger.log_ta_signal_to_file(payload, "ta-signal-test")
-		else:
-			log.info("[TA-TEST] Text payload: %s", text_body)
-			print("[TA-TEST] Text payload:", text_body)
-			# Log to file
-			signal_logger.log_ta_signal_to_file(text_body or "", "ta-signal-test")
-
-		return jsonify({"status": "ok"}), 200
-	except Exception as e:
-		log.exception("Error handling /ta-signal-test: %s", e)
-		return jsonify({"status": "error", "message": str(e)}), 500
+# 기본 라우트들
+@app.route("/", methods=["GET"])
+def root():
+    """메인 대시보드 페이지 제공"""
+    web2_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'web2')
+    return send_from_directory(web2_path, 'index.html')
 
 
-"""
-curl -X POST http://localhost:5000/ta-signal \
-  -H "Content-Type: application/json" \
-  -d '{
-    "strategy": {
-      "name": "Test Strategy"
-    },
-    "instrument": {
-      "ticker": "BTC"
-    },
-    "order": {
-      "action": "buy",
-      "quantity": "1"
-    },
-    "position": {
-      "new_size": "1"
-    }
-  }'
-"""
-@app.route("/ta-signal", methods=["POST"])
-def ta_signal():
-	"""TradingView에서 웹훅을 받아 업비트 매매 신호 실행"""
-	try:
-		payload: Dict[str, Any] | None = None
-		text_body: str | None = None
-
-		if request.is_json:
-			payload = request.get_json(silent=True)
-		else:
-			text_body = request.get_data(as_text=True)
-
-		# 로그 출력
-		if payload is not None:
-			log.info("[TA] JSON payload: %s", json.dumps(payload, ensure_ascii=False))
-			print("[TA] JSON payload:", json.dumps(payload, ensure_ascii=False))
-			
-			# 파일에 로그 저장
-			signal_logger.log_ta_signal_to_file(payload, "ta-signal")
-			
-			# JSON 데이터에서 매매 신호 추출 및 실행
-			try:
-				ticker = payload.get("instrument", {}).get("ticker", "")
-				action = payload.get("order", {}).get("action", "").lower()
-				
-				if not ticker:
-					log.warning("티커 정보가 없습니다.")
-					return jsonify({"status": "error", "message": "Missing ticker"}), 400
-				
-				if not action:
-					log.warning("액션 정보가 없습니다.")
-					return jsonify({"status": "error", "message": "Missing action"}), 400
-				
-				log.info("매매 신호 처리: 티커=%s, 액션=%s", ticker, action)
-				
-				if action == "buy":
-					success = trading_executor.execute_buy_signal(ticker)
-					if success:
-						return jsonify({"status": "ok", "message": f"Buy order executed for {ticker}"}), 200
-					else:
-						return jsonify({"status": "error", "message": f"Buy order failed for {ticker}"}), 500
-				
-				elif action == "sell":
-					success = trading_executor.execute_sell_signal(ticker)
-					if success:
-						return jsonify({"status": "ok", "message": f"Sell order executed for {ticker}"}), 200
-					else:
-						return jsonify({"status": "error", "message": f"Sell order failed for {ticker}"}), 500
-				
-				else:
-					log.warning("알 수 없는 액션: %s", action)
-					return jsonify({"status": "ok", "message": f"Unknown action: {action}"}), 200
-					
-			except Exception as trading_error:
-				log.error("매매 신호 처리 중 오류: %s", trading_error)
-				return jsonify({"status": "error", "message": f"Trading error: {str(trading_error)}"}), 500
-			
-		else:
-			log.info("[TA] Text payload: %s", text_body)
-			print("[TA] Text payload:", text_body)
-			# 파일에 로그 저장
-			signal_logger.log_ta_signal_to_file(text_body or "", "ta-signal")
-
-		return jsonify({"status": "ok"}), 200
-	except Exception as e:
-		log.exception("Error handling /ta-signal: %s", e)
-		return jsonify({"status": "error", "message": str(e)}), 500
+@app.route("/api-info", methods=["GET"])
+def api_info():
+    """API 정보 제공 (기존 루트 엔드포인트 내용)"""
+    return jsonify({
+        "service": "Auto Trading Server",
+        "version": "2.0.0",
+        "status": "running",
+        "apis": {
+            "discord": "/api/discord",
+            "tradingview": "/api/tradingview", 
+            "trading": "/api/trading"
+        },
+        "endpoints": {
+            "health": "/health",
+            "legacy_ta_signal": "/ta-signal",
+            "legacy_ta_signal_test": "/ta-signal-test"
+        }
+    }), 200
 
 
-@app.route("/health", methods=["GET"])  # simple liveness probe
+@app.route("/health", methods=["GET"])
 def health():
-	return jsonify({"status": "up"}), 200
+    """전체 시스템 상태 확인"""
+    return jsonify({
+        "status": "up",
+        "service": "auto-trading-server",
+        "version": "2.0.0",
+        "apis": {
+            "discord": "active",
+            "tradingview": "active", 
+            "trading": "active"
+        }
+    }), 200
 
+
+# 레거시 호환성을 위한 라우트들 (기존 TradingView 웹훅이 계속 작동하도록)
+@app.route("/ta-signal-test", methods=["POST"])
+def legacy_ta_signal_test():
+    """레거시 호환성: /ta-signal-test -> /api/tradingview/signal-test로 리다이렉트"""
+    from .api.tradingview_api import ta_signal_test
+    return ta_signal_test()
+
+
+@app.route("/ta-signal", methods=["POST"])  
+def legacy_ta_signal():
+    """레거시 호환성: /ta-signal -> /api/tradingview/signal로 리다이렉트"""
+    from .api.tradingview_api import ta_signal
+    return ta_signal()
+
+
+# 레거시 엔드포인트들도 새로운 API로 리다이렉트
 @app.route("/test-balance", methods=["GET"])
-def test_balance():
-	"""업비트 잔고 조회 테스트"""
-	try:
-		balances = upbit_api.get_balances()
-		total_balance = upbit_api.calculate_total_balance()
-		
-		return jsonify({
-			"status": "ok", 
-			"balances": balances,
-			"total_balance_krw": total_balance
-		}), 200
-	except Exception as e:
-		log.error("잔고 조회 테스트 중 오류: %s", e)
-		return jsonify({"status": "error", "message": str(e)}), 500
+def legacy_test_balance():
+    """레거시 호환성: /test-balance -> /api/trading/balance로 리다이렉트"""
+    from .api.trading_api import get_balance
+    return get_balance()
+
 
 @app.route("/markets", methods=["GET"])
-def get_markets():
-	"""지원 가능한 마켓 및 티커 목록 조회"""
-	try:
-		available_tickers = upbit_api.get_available_tickers()
-		market_details = {}
-		
-		# 상위 20개 주요 코인만 상세 정보 포함
-		major_tickers = ['BTC', 'ETH', 'XRP', 'ADA', 'DOT', 'LINK', 'LTC', 'BCH', 'EOS', 'TRX', 
-						'ETC', 'ATOM', 'BAT', 'ENJ', 'KNC', 'MANA', 'SAND', 'AXS', 'CHZ', 'FLOW']
-		
-		for ticker in major_tickers:
-			if ticker in upbit_api.market_info_cache:
-				market_details[ticker] = upbit_api.market_info_cache[ticker]
-		
-		return jsonify({
-			"status": "ok",
-			"total_markets": len(available_tickers),
-			"all_tickers": sorted(available_tickers),
-			"major_markets": market_details
-		}), 200
-	except Exception as e:
-		log.error("마켓 조회 중 오류: %s", e)
-		return jsonify({"status": "error", "message": str(e)}), 500
+def legacy_markets():
+    """레거시 호환성: /markets -> /api/trading/markets로 리다이렉트"""
+    from .api.trading_api import get_markets
+    return get_markets()
+
 
 @app.route("/trading-config", methods=["GET"])
-def get_trading_config():
-	"""현재 매매 전략 설정값 조회"""
-	try:
-		config = trading_executor.get_trading_config()
-		return jsonify({
-			"status": "ok",
-			"config": config,
-			"description": {
-				"max_position_ratio": "각 종목 최대 비중 (전체 자산 대비)",
-				"min_order_amount": "최소 주문 금액 (원)",
-				"min_sell_value": "최소 매도 가치 (원)"
-			}
-		}), 200
-	except Exception as e:
-		log.error("설정 조회 중 오류: %s", e)
-		return jsonify({"status": "error", "message": str(e)}), 500
+def legacy_trading_config():
+    """레거시 호환성: /trading-config -> /api/trading/config로 리다이렉트"""
+    from .api.trading_api import get_trading_config
+    return get_trading_config()
 
 
 def _get_ssl_context():

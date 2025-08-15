@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Trading Server Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+        
+        .header h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .status-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        
+        .status-online {
+            background-color: #4caf50;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-offline {
+            background-color: #f44336;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .api-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .api-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .api-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+        }
+        
+        .api-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        
+        .api-card p {
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        
+        .endpoints {
+            list-style: none;
+        }
+        
+        .endpoints li {
+            background: #f8f9fa;
+            padding: 8px 12px;
+            margin-bottom: 5px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: #495057;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            margin: 5px;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .features {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .features h2 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #2c3e50;
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .feature-item {
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .footer {
+            text-align: center;
+            color: white;
+            opacity: 0.8;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Auto Trading Server</h1>
+            <p>모듈화된 자동매매 서버 대시보드</p>
+        </div>
+        
+        <div class="status-card">
+            <h2>서버 상태</h2>
+            <p>
+                <span class="status-indicator status-online"></span>
+                <span id="server-status">온라인</span> - 
+                버전 <span id="server-version">2.0.0</span>
+            </p>
+        </div>
+        
+        <div class="api-grid">
+            <div class="api-card">
+                <h3>🤖 Discord Bot API</h3>
+                <p>디스코드 봇과의 통합을 위한 API 엔드포인트</p>
+                <ul class="endpoints">
+                    <li>GET /api/discord/health</li>
+                    <li>GET /api/discord/commands</li>
+                    <li>POST /api/discord/webhook</li>
+                    <li>POST /api/discord/notification</li>
+                </ul>
+                <button class="btn" onclick="testDiscordAPI()">API 테스트</button>
+            </div>
+            
+            <div class="api-card">
+                <h3>📈 TradingView API</h3>
+                <p>TradingView 웹훅을 처리하는 API 엔드포인트</p>
+                <ul class="endpoints">
+                    <li>GET /api/tradingview/health</li>
+                    <li>POST /api/tradingview/signal</li>
+                    <li>POST /api/tradingview/signal-test</li>
+                    <li>GET /api/tradingview/strategies</li>
+                </ul>
+                <button class="btn" onclick="testTradingViewAPI()">API 테스트</button>
+            </div>
+            
+            <div class="api-card">
+                <h3>💰 Trading API</h3>
+                <p>거래 관련 기능을 제공하는 API 엔드포인트</p>
+                <ul class="endpoints">
+                    <li>GET /api/trading/health</li>
+                    <li>GET /api/trading/balance</li>
+                    <li>GET /api/trading/markets</li>
+                    <li>POST /api/trading/orders</li>
+                </ul>
+                <button class="btn" onclick="testTradingAPI()">API 테스트</button>
+            </div>
+        </div>
+        
+        <div class="features">
+            <h2>주요 기능</h2>
+            <div class="feature-grid">
+                <div class="feature-item">
+                    <div class="feature-icon">🔄</div>
+                    <h3>자동 매매</h3>
+                    <p>TradingView 신호를 받아 자동으로 거래 실행</p>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">💬</div>
+                    <h3>Discord 연동</h3>
+                    <p>Discord를 통한 실시간 알림 및 명령어 제어</p>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">📊</div>
+                    <h3>실시간 모니터링</h3>
+                    <p>포트폴리오 상태 및 거래 내역 실시간 확인</p>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">🛡️</div>
+                    <h3>안전한 거래</h3>
+                    <p>리스크 관리 및 안전장치 내장</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="status-card">
+            <h2>빠른 액세스</h2>
+            <a href="/health" class="btn">시스템 상태</a>
+            <a href="/api/trading/balance" class="btn">잔고 조회</a>
+            <a href="/api/trading/markets" class="btn">지원 마켓</a>
+            <a href="/api/tradingview/strategies" class="btn">활성 전략</a>
+        </div>
+        
+        <div class="footer">
+            <p>&copy; 2025 Auto Trading Server. 모든 권리 보유.</p>
+        </div>
+    </div>
+    
+    <script>
+        // 서버 상태 확인
+        async function checkServerStatus() {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                
+                if (data.status === 'up') {
+                    document.getElementById('server-status').textContent = '온라인';
+                    document.getElementById('server-version').textContent = data.version;
+                } else {
+                    document.getElementById('server-status').textContent = '오프라인';
+                    document.querySelector('.status-indicator').className = 'status-indicator status-offline';
+                }
+            } catch (error) {
+                console.error('서버 상태 확인 실패:', error);
+                document.getElementById('server-status').textContent = '연결 실패';
+                document.querySelector('.status-indicator').className = 'status-indicator status-offline';
+            }
+        }
+        
+        // API 테스트 함수들
+        async function testDiscordAPI() {
+            try {
+                const response = await fetch('/api/discord/health');
+                const data = await response.json();
+                alert(`Discord API 상태: ${data.status}\n서비스: ${data.service}\n버전: ${data.version}`);
+            } catch (error) {
+                alert('Discord API 테스트 실패: ' + error.message);
+            }
+        }
+        
+        async function testTradingViewAPI() {
+            try {
+                const response = await fetch('/api/tradingview/health');
+                const data = await response.json();
+                alert(`TradingView API 상태: ${data.status}\n서비스: ${data.service}\n버전: ${data.version}`);
+            } catch (error) {
+                alert('TradingView API 테스트 실패: ' + error.message);
+            }
+        }
+        
+        async function testTradingAPI() {
+            try {
+                const response = await fetch('/api/trading/health');
+                const data = await response.json();
+                alert(`Trading API 상태: ${data.status}\n서비스: ${data.service}\n버전: ${data.version}`);
+            } catch (error) {
+                alert('Trading API 테스트 실패: ' + error.message);
+            }
+        }
+        
+        // 페이지 로드 시 서버 상태 확인
+        window.addEventListener('load', checkServerStatus);
+        
+        // 30초마다 서버 상태 업데이트
+        setInterval(checkServerStatus, 30000);
+    </script>
+</body>
+</html>
