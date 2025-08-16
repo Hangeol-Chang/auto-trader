@@ -1,3 +1,12 @@
+## discord.json
+```json
+{
+    "DISCORD_WEBHOOK_URL": "YOUR_DISCORD_WEBHOOK_URL",
+    "DISCORD_CHANNEL_ID": "YOUR_DISCORD_CHANNEL_ID",
+    "DISCORD_CLIENT_ID": "BOT_CLIENT_ID"
+}
+```
+
 ## keys.json
 ```json
 {

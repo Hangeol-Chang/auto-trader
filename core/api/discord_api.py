@@ -7,14 +7,72 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import requests
+import sys
+from pathlib import Path
 from typing import Any, Dict
 
 from flask import Blueprint, request, jsonify
+
+# 모듈 path 추가
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
 log = logging.getLogger(__name__)
 
 # Discord bot API Blueprint 생성
 discord_bp = Blueprint('discord', __name__, url_prefix='/api/discord')
+
+
+def load_discord_config() -> Dict[str, str]:
+    """discord.json 파일에서 Discord 설정 로드"""
+    try:
+        config_path = Path(__file__).parent.parent.parent / "private" / "discord.json"
+        if config_path.exists():
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                log.info("Discord 설정을 파일에서 로드했습니다: %s", config_path)
+                return config
+        else:
+            log.warning("Discord 설정 파일이 없습니다: %s", config_path)
+            return {}
+    except Exception as e:
+        log.error("Discord 설정 로드 중 오류: %s", e)
+        return {}
+
+
+# Discord 설정 로드
+discord_config = load_discord_config()
+DISCORD_WEBHOOK_URL = discord_config.get("DISCORD_WEBHOOK_URL", os.getenv("DISCORD_WEBHOOK_URL", ""))
+DEFAULT_DISCORD_CHANNEL_ID = discord_config.get("DISCORD_CHANNEL_ID", os.getenv("DISCORD_CHANNEL_ID", ""))
+
+
+def send_to_discord_webhook(message: str, webhook_url: str = None) -> bool:
+    """Discord 웹훅을 통해 메시지 전송"""
+    try:
+        # 최신 설정 로드
+        current_config = load_discord_config()
+        url = webhook_url or current_config.get("DISCORD_WEBHOOK_URL", "") or DISCORD_WEBHOOK_URL
+        
+        if not url:
+            log.warning("Discord 웹훅 URL이 설정되지 않았습니다.")
+            return False
+        
+        # Discord 웹훅 페이로드 구성
+        payload = {
+            "content": message
+        }
+        
+        response = requests.post(url, json=payload, timeout=10)
+        if response.status_code == 204:  # Discord 웹훅 성공 응답
+            log.info("Discord 웹훅을 통한 메시지 전송 성공")
+            return True
+        else:
+            log.warning("Discord 웹훅 전송 실패 (status: %s): %s", response.status_code, response.text)
+            return False
+    except Exception as e:
+        log.error("Discord 웹훅 전송 중 오류: %s", e)
+        return False
 
 
 @discord_bp.route("/health", methods=["GET"])
@@ -25,6 +83,56 @@ def discord_health():
         "service": "discord-bot-api",
         "version": "1.0.0"
     }), 200
+
+
+@discord_bp.route("/config", methods=["GET"])
+def get_discord_config():
+    """Discord 설정 정보 조회 (민감한 정보는 마스킹)"""
+    try:
+        config = load_discord_config()
+        
+        # 웹훅 URL 마스킹 (보안)
+        webhook_url = config.get("DISCORD_WEBHOOK_URL", "")
+        masked_webhook = webhook_url[:50] + "***" if len(webhook_url) > 50 else "설정되지 않음"
+        
+        return jsonify({
+            "status": "ok",
+            "config": {
+                "webhook_configured": bool(webhook_url),
+                "webhook_url_preview": masked_webhook,
+                "channel_id": config.get("DISCORD_CHANNEL_ID", "설정되지 않음"),
+                "config_file_exists": bool(config)
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+
+@discord_bp.route("/test", methods=["POST"])
+def test_discord_notification():
+    """Discord 알림 테스트용 엔드포인트"""
+    try:
+        test_message = "🧪 **Discord 알림 테스트**\n✅ 웹훅이 정상적으로 작동합니다!"
+        success = send_to_discord_webhook(test_message)
+        
+        if success:
+            return jsonify({
+                "status": "ok",
+                "message": "Test notification sent successfully"
+            }), 200
+        else:
+            return jsonify({
+                "status": "error", 
+                "message": "Failed to send test notification"
+            }), 500
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
 
 
 @discord_bp.route("/commands", methods=["GET"])
@@ -105,6 +213,30 @@ def discord_webhook():
         }), 500
 
 
+@discord_bp.route("/reload-config", methods=["POST"])
+def reload_discord_config():
+    """Discord 설정 재로드"""
+    try:
+        global discord_config, DISCORD_WEBHOOK_URL, DEFAULT_DISCORD_CHANNEL_ID
+        
+        # 설정 재로드
+        discord_config = load_discord_config()
+        DISCORD_WEBHOOK_URL = discord_config.get("DISCORD_WEBHOOK_URL", os.getenv("DISCORD_WEBHOOK_URL", ""))
+        DEFAULT_DISCORD_CHANNEL_ID = discord_config.get("DISCORD_CHANNEL_ID", os.getenv("DISCORD_CHANNEL_ID", ""))
+        
+        return jsonify({
+            "status": "ok",
+            "message": "Discord configuration reloaded successfully",
+            "webhook_configured": bool(DISCORD_WEBHOOK_URL),
+            "channel_configured": bool(DEFAULT_DISCORD_CHANNEL_ID)
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+
 @discord_bp.route("/notification", methods=["POST"])
 def send_discord_notification():
     """디스코드로 알림 메시지 전송"""
@@ -132,16 +264,31 @@ def send_discord_notification():
         
         log.info("[DISCORD] Sending notification to channel %s: %s", channel_id, message)
         
-        # 실제 디스코드 봇으로 메시지 전송하는 로직이 여기에 들어갑니다.
-        # 예를 들어, discord.py 라이브러리를 사용하거나 웹훅을 통해 전송
+        # 메시지 타입에 따른 이모지 추가
+        type_emojis = {
+            "success": "✅",
+            "error": "❌", 
+            "warning": "⚠️",
+            "info": "ℹ️"
+        }
+        emoji = type_emojis.get(message_type, "")
+        formatted_message = f"{emoji} {message}" if emoji else message
         
-        # 임시로 성공 응답 반환
-        return jsonify({
-            "status": "ok",
-            "message": "Notification sent successfully",
-            "channel_id": channel_id,
-            "type": message_type
-        }), 200
+        # 실제 Discord 웹훅으로 메시지 전송
+        success = send_to_discord_webhook(formatted_message)
+        
+        if success:
+            return jsonify({
+                "status": "ok",
+                "message": "Notification sent successfully",
+                "channel_id": channel_id,
+                "type": message_type
+            }), 200
+        else:
+            return jsonify({
+                "status": "error",
+                "message": "Failed to send Discord notification"
+            }), 500
         
     except Exception as e:
         log.exception("Error sending discord notification: %s", e)

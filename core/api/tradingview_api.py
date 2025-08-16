@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import requests
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -29,6 +31,50 @@ tradingview_bp = Blueprint('tradingview', __name__, url_prefix='/api/tradingview
 upbit_api = UpbitAPI()
 trading_executor = TradingExecutor(upbit_api)
 signal_logger = SignalLogger()
+
+
+def load_discord_config() -> Dict[str, str]:
+    """discord.json 파일에서 Discord 설정 로드"""
+    try:
+        config_path = Path(__file__).parent.parent.parent / "private" / "discord.json"
+        if config_path.exists():
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                log.info("Discord 설정을 파일에서 로드했습니다: %s", config_path)
+                return config
+        else:
+            log.warning("Discord 설정 파일이 없습니다: %s", config_path)
+            return {}
+    except Exception as e:
+        log.error("Discord 설정 로드 중 오류: %s", e)
+        return {}
+
+
+# Discord 알림 설정 (JSON 파일에서 로드, 환경변수로 fallback)
+discord_config = load_discord_config()
+DISCORD_WEBHOOK_URL = "http://localhost:5000/api/discord/notification"  # 자기 자신의 Discord API 호출
+DEFAULT_DISCORD_CHANNEL_ID = discord_config.get("DISCORD_CHANNEL_ID", os.getenv("DISCORD_CHANNEL_ID", ""))
+
+
+def send_discord_notification(message: str, message_type: str = "info", channel_id: str = None) -> bool:
+    """Discord로 알림 메시지 전송"""
+    try:
+        payload = {
+            "channel_id": channel_id or DEFAULT_DISCORD_CHANNEL_ID,
+            "message": message,
+            "type": message_type
+        }
+        
+        response = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=5)
+        if response.status_code == 200:
+            log.info("Discord 알림 전송 성공: %s", message)
+            return True
+        else:
+            log.warning("Discord 알림 전송 실패: %s", response.text)
+            return False
+    except Exception as e:
+        log.error("Discord 알림 전송 중 오류: %s", e)
+        return False
 
 
 @tradingview_bp.route("/health", methods=["GET"])
@@ -131,26 +177,48 @@ def ta_signal():
                 
                 log.info("매매 신호 처리: 티커=%s, 액션=%s", ticker, action)
                 
+                # Discord 알림 전송 (매매 신호 수신 알림)
+                signal_message = f"📈 **TradingView 신호 수신**\n🎯 **티커**: {ticker}\n⚡ **액션**: {action.upper()}"
+                send_discord_notification(signal_message, "info")
+                
                 if action == "buy":
                     success = trading_executor.execute_buy_signal(ticker)
                     if success:
+                        # 매수 성공 알림
+                        success_message = f"✅ **매수 주문 완료**\n🎯 **티커**: {ticker}\n💰 **상태**: 주문 실행됨"
+                        send_discord_notification(success_message, "success")
                         return jsonify({"status": "ok", "message": f"Buy order executed for {ticker}"}), 200
                     else:
+                        # 매수 실패 알림
+                        error_message = f"❌ **매수 주문 실패**\n🎯 **티커**: {ticker}\n⚠️ **상태**: 주문 실행 실패"
+                        send_discord_notification(error_message, "error")
                         return jsonify({"status": "error", "message": f"Buy order failed for {ticker}"}), 500
                 
                 elif action == "sell":
                     success = trading_executor.execute_sell_signal(ticker)
                     if success:
+                        # 매도 성공 알림
+                        success_message = f"✅ **매도 주문 완료**\n🎯 **티커**: {ticker}\n💰 **상태**: 주문 실행됨"
+                        send_discord_notification(success_message, "success")
                         return jsonify({"status": "ok", "message": f"Sell order executed for {ticker}"}), 200
                     else:
+                        # 매도 실패 알림
+                        error_message = f"❌ **매도 주문 실패**\n🎯 **티커**: {ticker}\n⚠️ **상태**: 주문 실행 실패"
+                        send_discord_notification(error_message, "error")
                         return jsonify({"status": "error", "message": f"Sell order failed for {ticker}"}), 500
                 
                 else:
                     log.warning("알 수 없는 액션: %s", action)
+                    # 알 수 없는 액션 알림
+                    warning_message = f"⚠️ **알 수 없는 액션**\n🎯 **티커**: {ticker}\n❓ **액션**: {action}"
+                    send_discord_notification(warning_message, "warning")
                     return jsonify({"status": "ok", "message": f"Unknown action: {action}"}), 200
                     
             except Exception as trading_error:
                 log.error("매매 신호 처리 중 오류: %s", trading_error)
+                # 매매 신호 처리 오류 알림
+                error_message = f"🚨 **매매 신호 처리 오류**\n🎯 **티커**: {ticker if 'ticker' in locals() else 'Unknown'}\n❌ **오류**: {str(trading_error)}"
+                send_discord_notification(error_message, "error")
                 return jsonify({"status": "error", "message": f"Trading error: {str(trading_error)}"}), 500
             
         else:
@@ -158,6 +226,10 @@ def ta_signal():
             print("[TA] Text payload:", text_body)
             # 파일에 로그 저장
             signal_logger.log_ta_signal_to_file(text_body or "", "ta-signal")
+            
+            # 텍스트 신호 수신 알림
+            text_message = f"📝 **TradingView 텍스트 신호 수신**\n📄 **내용**: {text_body[:100]}{'...' if len(text_body or '') > 100 else ''}"
+            send_discord_notification(text_message, "info")
 
         return jsonify({"status": "ok"}), 200
     except Exception as e:
