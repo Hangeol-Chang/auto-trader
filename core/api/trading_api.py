@@ -17,6 +17,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from module.upbit_api import UpbitAPI
 from module.trading_executor import TradingExecutor
+from module.kis_stock_api import KISStockAPI
 
 log = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ trading_bp = Blueprint('trading', __name__, url_prefix='/api/trading')
 # 전역 인스턴스 (실제로는 의존성 주입을 사용하는 것이 좋습니다)
 upbit_api = UpbitAPI()
 trading_executor = TradingExecutor(upbit_api)
+kis_stock_api = KISStockAPI(invest_type="VPS")  # 모의투자로 기본 설정
 
 
 @trading_bp.route("/health", methods=["GET"])
@@ -352,3 +354,200 @@ def get_performance():
     except Exception as e:
         log.error("성과 분석 중 오류: %s", e)
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@trading_bp.route("/stock-signal", methods=["POST"])
+def handle_stock_signal():
+    """주식 신호 처리 - TradingView에서 오는 주식 매매 신호를 KIS API로 처리
+    
+    요청 형태:
+    {
+        "stock_code": "005930",  # 종목코드 (삼성전자)
+        "action": "buy",         # 매수/매도 (buy/sell)
+        "price": 65000,          # 주문가격 (지정가, 생략시 시장가)
+        "quantity": 10,          # 주문수량
+        "strategy": "RSI_Strategy"  # 전략명 (선택)
+    }
+    """
+    try:
+        payload = request.get_json(silent=True)
+        
+        if not payload:
+            return jsonify({
+                "status": "error",
+                "message": "No JSON payload received"
+            }), 400
+        
+        # 필수 필드 확인
+        required_fields = ["stock_code", "action", "quantity"]
+        for field in required_fields:
+            if field not in payload:
+                return jsonify({
+                    "status": "error",
+                    "message": f"Missing required field: {field}"
+                }), 400
+        
+        stock_code = payload["stock_code"]
+        action = payload["action"].lower()
+        price = payload.get("price")  # 지정가 (선택)
+        quantity = int(payload["quantity"])
+        strategy = payload.get("strategy", "Unknown")
+        
+        # 액션 유효성 검사
+        if action not in ["buy", "sell"]:
+            return jsonify({
+                "status": "error",
+                "message": "Action must be 'buy' or 'sell'"
+            }), 400
+        
+        # 수량 유효성 검사
+        if quantity <= 0:
+            return jsonify({
+                "status": "error",
+                "message": "Quantity must be greater than 0"
+            }), 400
+        
+        log.info("주식 신호 처리 시작 - 종목: %s, 액션: %s, 수량: %s, 가격: %s", 
+                stock_code, action, quantity, price)
+        
+        # KIS API를 통한 주식 주문 실행
+        if action == "buy":
+            result = kis_stock_api.buy_stock(stock_code, price, quantity)
+        else:  # sell
+            result = kis_stock_api.sell_stock(stock_code, price, quantity)
+        
+        if not result:
+            return jsonify({
+                "status": "error",
+                "message": "주문 처리 중 오류가 발생했습니다"
+            }), 500
+        
+        if result.get("success"):
+            # 주문 성공
+            order_type = "지정가" if price else "시장가"
+            message = f"{action.upper()} 주문 성공 - {stock_code} {quantity}주 {order_type}"
+            
+            response_data = {
+                "status": "ok",
+                "message": message,
+                "order_info": {
+                    "stock_code": stock_code,
+                    "action": action,
+                    "quantity": quantity,
+                    "price": price,
+                    "order_type": order_type,
+                    "strategy": strategy,
+                    "order_no": result.get("order_no", ""),
+                    "kis_message": result.get("message", "")
+                }
+            }
+            
+            log.info("주식 주문 성공 - %s", message)
+            return jsonify(response_data), 200
+        else:
+            # 주문 실패
+            error_message = result.get("error", "알 수 없는 오류")
+            log.error("주식 주문 실패 - 종목: %s, 오류: %s", stock_code, error_message)
+            
+            return jsonify({
+                "status": "error",
+                "message": f"주문 실패: {error_message}",
+                "order_info": {
+                    "stock_code": stock_code,
+                    "action": action,
+                    "quantity": quantity,
+                    "price": price,
+                    "strategy": strategy
+                },
+                "error_details": result
+            }), 500
+            
+    except ValueError as e:
+        log.error("주식 신호 처리 중 입력 오류: %s", e)
+        return jsonify({
+            "status": "error",
+            "message": f"입력 데이터 오류: {str(e)}"
+        }), 400
+    except Exception as e:
+        log.error("주식 신호 처리 중 예상치 못한 오류: %s", e)
+        return jsonify({
+            "status": "error",
+            "message": f"서버 오류: {str(e)}"
+        }), 500
+
+
+@trading_bp.route("/stock-balance", methods=["GET"])
+def get_stock_balance():
+    """KIS API를 통한 주식 잔고 조회"""
+    try:
+        result = kis_stock_api.get_stock_balance()
+        
+        if not result:
+            return jsonify({
+                "status": "error",
+                "message": "잔고 조회 중 오류가 발생했습니다"
+            }), 500
+        
+        if result.get("success"):
+            return jsonify({
+                "status": "ok",
+                "balance_info": result.get("balances", []),
+                "summary": result.get("summary", [])
+            }), 200
+        else:
+            error_message = result.get("error", "알 수 없는 오류")
+            return jsonify({
+                "status": "error",
+                "message": f"잔고 조회 실패: {error_message}"
+            }), 500
+            
+    except Exception as e:
+        log.error("주식 잔고 조회 중 오류: %s", e)
+        return jsonify({
+            "status": "error",
+            "message": f"서버 오류: {str(e)}"
+        }), 500
+
+
+@trading_bp.route("/stock-price/<stock_code>", methods=["GET"])
+def get_stock_price(stock_code: str):
+    """KIS API를 통한 주식 현재가 조회"""
+    try:
+        if not stock_code or len(stock_code) != 6:
+            return jsonify({
+                "status": "error",
+                "message": "종목코드는 6자리여야 합니다 (예: 005930)"
+            }), 400
+        
+        result = kis_stock_api.get_stock_price(stock_code)
+        
+        if not result:
+            return jsonify({
+                "status": "error",
+                "message": "주가 조회 중 오류가 발생했습니다"
+            }), 500
+        
+        if result.get("success"):
+            return jsonify({
+                "status": "ok",
+                "stock_info": {
+                    "stock_code": result.get("stock_code"),
+                    "current_price": result.get("current_price"),
+                    "change": result.get("change"),
+                    "change_rate": result.get("change_rate"),
+                    "volume": result.get("volume")
+                }
+            }), 200
+        else:
+            error_message = result.get("error", "알 수 없는 오류")
+            return jsonify({
+                "status": "error",
+                "message": f"주가 조회 실패: {error_message}"
+            }), 500
+            
+    except Exception as e:
+        log.error("주식 현재가 조회 중 오류: %s", e)
+        return jsonify({
+            "status": "error",
+            "message": f"서버 오류: {str(e)}"
+        }), 500

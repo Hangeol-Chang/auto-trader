@@ -1,0 +1,141 @@
+{
+  "info": "주식 신호 API 테스트용 JSON 샘플",
+  "server_url": "http://localhost:5000",
+  "test_samples": {
+    "stock_buy_limit_order": {
+      "url": "/api/trading/stock-signal",
+      "method": "POST",
+      "description": "삼성전자 지정가 매수 주문",
+      "payload": {
+        "stock_code": "005930",
+        "action": "buy",
+        "price": 65000,
+        "quantity": 1,
+        "strategy": "Test Limit Buy Strategy"
+      }
+    },
+    "stock_sell_limit_order": {
+      "url": "/api/trading/stock-signal",
+      "method": "POST",
+      "description": "삼성전자 지정가 매도 주문",
+      "payload": {
+        "stock_code": "005930",
+        "action": "sell",
+        "price": 66000,
+        "quantity": 1,
+        "strategy": "Test Limit Sell Strategy"
+      }
+    },
+    "stock_buy_market_order": {
+      "url": "/api/trading/stock-signal",
+      "method": "POST",
+      "description": "삼성전자 시장가 매수 주문",
+      "payload": {
+        "stock_code": "005930",
+        "action": "buy",
+        "quantity": 1,
+        "strategy": "Test Market Buy Strategy"
+      }
+    },
+    "stock_sell_market_order": {
+      "url": "/api/trading/stock-signal",
+      "method": "POST",
+      "description": "삼성전자 시장가 매도 주문",
+      "payload": {
+        "stock_code": "005930",
+        "action": "sell",
+        "quantity": 1,
+        "strategy": "Test Market Sell Strategy"
+      }
+    },
+    "sk_hynix_buy": {
+      "url": "/api/trading/stock-signal",
+      "method": "POST",
+      "description": "SK하이닉스 지정가 매수",
+      "payload": {
+        "stock_code": "000660",
+        "action": "buy",
+        "price": 120000,
+        "quantity": 1,
+        "strategy": "SK Hynix Strategy"
+      }
+    },
+    "naver_sell": {
+      "url": "/api/trading/stock-signal",
+      "method": "POST",
+      "description": "네이버 지정가 매도",
+      "payload": {
+        "stock_code": "035420",
+        "action": "sell",
+        "price": 180000,
+        "quantity": 1,
+        "strategy": "Naver Strategy"
+      }
+    },
+    "stock_balance_check": {
+      "url": "/api/trading/stock-balance",
+      "method": "GET",
+      "description": "주식 잔고 조회"
+    },
+    "samsung_price_check": {
+      "url": "/api/trading/stock-price/005930",
+      "method": "GET",
+      "description": "삼성전자 현재가 조회"
+    },
+    "sk_hynix_price_check": {
+      "url": "/api/trading/stock-price/000660",
+      "method": "GET",
+      "description": "SK하이닉스 현재가 조회"
+    },
+    "naver_price_check": {
+      "url": "/api/trading/stock-price/035420",
+      "method": "GET",
+      "description": "네이버 현재가 조회"
+    }
+  },
+  "popular_korean_stocks": {
+    "005930": "삼성전자",
+    "000660": "SK하이닉스",
+    "035420": "NAVER",
+    "051910": "LG화학",
+    "068270": "셀트리온",
+    "035720": "카카오",
+    "006400": "삼성SDI",
+    "032830": "삼성생명",
+    "028260": "삼성물산",
+    "096770": "SK이노베이션"
+  },
+  "curl_examples": {
+    "stock_buy_signal": "curl -X POST http://localhost:5000/api/trading/stock-signal -H \"Content-Type: application/json\" -d '{\"stock_code\":\"005930\",\"action\":\"buy\",\"price\":65000,\"quantity\":1,\"strategy\":\"Test Buy\"}'",
+    "stock_sell_signal": "curl -X POST http://localhost:5000/api/trading/stock-signal -H \"Content-Type: application/json\" -d '{\"stock_code\":\"005930\",\"action\":\"sell\",\"price\":66000,\"quantity\":1,\"strategy\":\"Test Sell\"}'",
+    "stock_balance": "curl -X GET http://localhost:5000/api/trading/stock-balance",
+    "stock_price": "curl -X GET http://localhost:5000/api/trading/stock-price/005930"
+  },
+  "webhook_simulation": {
+    "description": "TradingView에서 전송될 것으로 예상되는 주식 신호 형태",
+    "tradingview_buy_signal": {
+      "url": "/api/trading/stock-signal",
+      "method": "POST",
+      "payload": {
+        "ticker": "KRX:005930",
+        "action": "buy",
+        "price": "{{close}}",
+        "quantity": 1,
+        "strategy": "{{strategy.order.comment}}",
+        "stock_code": "005930"
+      }
+    },
+    "tradingview_sell_signal": {
+      "url": "/api/trading/stock-signal", 
+      "method": "POST",
+      "payload": {
+        "ticker": "KRX:005930",
+        "action": "sell",
+        "price": "{{close}}",
+        "quantity": 1,
+        "strategy": "{{strategy.order.comment}}",
+        "stock_code": "005930"
+      }
+    }
+  }
+}
