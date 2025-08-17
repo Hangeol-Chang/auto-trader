@@ -1,123 +1,163 @@
 {
-    "name": "TradingView ta-signal 테스트 모음",
+    "name": "신규 Trading API 테스트 모음",
+    "info": "레거시 ta-signal에서 신규 API로 업데이트된 테스트 샘플",
+    "base_url": "http://localhost:5000",
     "requests": [
         {
-            "name": "매수 신호 - BTCKRW",
+            "name": "암호화폐 매수 신호 - BTCKRW",
             "method": "POST",
-            "url": "http://localhost:5000/ta-signal",
+            "url": "http://localhost:5000/api/tradingview/signal",
             "headers": {
                 "Content-Type": "application/json"
             },
             "body": {
-                "strategy": {
-                "name": "SMI/RSI",
-                "settings": {
-                    "source": "[B]",
-                    "parameters": "20, 20, 1.5, 14, 5, 2"
-                }
-                },
-                "instrument": {
-                "ticker": "BTCKRW"
-                },
-                "order": {
+                "ticker": "BTCKRW",
                 "action": "buy",
-                "quantity": "1"
-                },
-                "position": {
-                "new_size": "1"
-                }
+                "price": 95000000,
+                "quantity": 0.001,
+                "strategy": "SMI/RSI Strategy",
+                "timestamp": "{{time}}",
+                "exchange": "UPBIT"
             }
         },
         {
-            "name": "매도 신호 - BTCKRW",
+            "name": "암호화폐 매도 신호 - BTCKRW",
             "method": "POST",
-            "url": "http://localhost:5000/ta-signal",
+            "url": "http://localhost:5000/api/tradingview/signal",
             "headers": {
                 "Content-Type": "application/json"
             },
             "body": {
-                "strategy": {
-                "name": "SMI/RSI",
-                "settings": {
-                    "source": "[S]",
-                    "parameters": "20, 20, 1.5, 14, 5, 2"
-                }
-                },
-                "instrument": {
-                "ticker": "BTCKRW"
-                },
-                "order": {
+                "ticker": "BTCKRW",
                 "action": "sell",
-                "quantity": "1"
-                },
-                "position": {
-                "new_size": "0"
-                }
+                "price": 94000000,
+                "quantity": 0.001,
+                "strategy": "SMI/RSI Strategy",
+                "timestamp": "{{time}}",
+                "exchange": "UPBIT"
             }
         },
         {
-            "name": "매수 신호 - ETHKRW",
+            "name": "암호화폐 매수 신호 - ETHKRW",
             "method": "POST",
-            "url": "http://localhost:5000/ta-signal",
+            "url": "http://localhost:5000/api/tradingview/signal",
             "headers": {
                 "Content-Type": "application/json"
             },
             "body": {
-                "strategy": {
-                "name": "Test Strategy",
-                "settings": {
-                    "source": "[B]",
-                    "parameters": "20, 20, 1.5, 14, 5, 2"
-                }
-                },
-                "instrument": {
-                "ticker": "ETHKRW"
-                },
-                "order": {
+                "ticker": "ETHKRW",
                 "action": "buy",
-                "quantity": "0.5"
-                },
-                "position": {
-                "new_size": "0.5"
-                }
+                "price": 3500000,
+                "quantity": 0.01,
+                "strategy": "Test Strategy",
+                "timestamp": "{{time}}",
+                "exchange": "UPBIT"
             }
         },
         {
-            "name": "매도 신호 - ETHKRW",
+            "name": "암호화폐 매도 신호 - ETHKRW",
             "method": "POST",
-            "url": "http://localhost:5000/ta-signal",
+            "url": "http://localhost:5000/api/tradingview/signal",
             "headers": {
                 "Content-Type": "application/json"
             },
             "body": {
-                "strategy": {
-                    "name": "Test Strategy",
-                    "settings": {
-                        "source": "[S]",
-                        "parameters": "20, 20, 1.5, 14, 5, 2"
-                    }
-                },
-                "instrument": {
-                    "ticker": "ETHKRW"
-                },
-                "order": {
-                    "action": "sell",
-                    "quantity": "0.5"
-                },
-                "position": {
-                    "new_size": "0.5"
-                }
+                "ticker": "ETHKRW",
+                "action": "sell",
+                "price": 3450000,
+                "quantity": 0.01,
+                "strategy": "Test Strategy",
+                "timestamp": "{{time}}",
+                "exchange": "UPBIT"
             }
         },
         {
-            "name": "서버 상태 확인",
-            "method": "GET",
-            "url": "http://localhost:5000/health"
+            "name": "시장가 매수 신호 (가격 없음)",
+            "method": "POST",
+            "url": "http://localhost:5000/api/tradingview/signal",
+            "headers": {
+                "Content-Type": "application/json"
+            },
+            "body": {
+                "ticker": "DOTKRW",
+                "action": "buy",
+                "quantity": 1,
+                "strategy": "Market Order Strategy",
+                "timestamp": "{{time}}",
+                "exchange": "UPBIT"
+            }
         },
         {
-            "name": "잔고 조회 테스트",
+            "name": "TradingView 웹훅 상태 확인",
+            "method": "GET",
+            "url": "http://localhost:5000/api/tradingview/health"
+        },
+        {
+            "name": "Trading API 상태 확인",
+            "method": "GET",
+            "url": "http://localhost:5000/api/trading/health"
+        },
+        {
+            "name": "암호화폐 잔고 조회",
             "method": "GET", 
-            "url": "http://localhost:5000/test-balance"
+            "url": "http://localhost:5000/api/trading/balance"
+        },
+        {
+            "name": "지원 마켓 조회",
+            "method": "GET",
+            "url": "http://localhost:5000/api/trading/markets"
+        },
+        {
+            "name": "거래 설정 조회",
+            "method": "GET",
+            "url": "http://localhost:5000/api/trading/config"
+        },
+        {
+            "name": "주문 내역 조회",
+            "method": "GET",
+            "url": "http://localhost:5000/api/trading/orders"
+        },
+        {
+            "name": "보유 포지션 조회",
+            "method": "GET",
+            "url": "http://localhost:5000/api/trading/positions"
+        },
+        {
+            "name": "거래 성과 조회",
+            "method": "GET",
+            "url": "http://localhost:5000/api/trading/performance"
+        },
+        {
+            "name": "신호 테스트 (TradingView)",
+            "method": "POST",
+            "url": "http://localhost:5000/api/tradingview/signal-test",
+            "headers": {
+                "Content-Type": "application/json"
+            },
+            "body": {
+                "ticker": "BTCKRW",
+                "action": "buy",
+                "quantity": 0.001,
+                "strategy": "Test Signal"
+            }
         }
-    ]
+    ],
+    "curl_examples": {
+        "crypto_buy_signal": "curl -X POST http://localhost:5000/api/tradingview/signal -H \"Content-Type: application/json\" -d '{\"ticker\":\"BTCKRW\",\"action\":\"buy\",\"price\":95000000,\"quantity\":0.001,\"strategy\":\"Test\"}'",
+        "crypto_sell_signal": "curl -X POST http://localhost:5000/api/tradingview/signal -H \"Content-Type: application/json\" -d '{\"ticker\":\"BTCKRW\",\"action\":\"sell\",\"price\":94000000,\"quantity\":0.001,\"strategy\":\"Test\"}'",
+        "balance_check": "curl -X GET http://localhost:5000/api/trading/balance",
+        "health_check": "curl -X GET http://localhost:5000/api/tradingview/health"
+    },
+    "api_migration_notes": {
+        "old_endpoint": "/ta-signal",
+        "new_endpoint": "/api/tradingview/signal",
+        "changes": [
+            "Simplified payload structure",
+            "Direct ticker/action/price/quantity fields",
+            "Added timestamp and exchange fields",
+            "Removed nested strategy/instrument/order objects",
+            "Better error handling and response format",
+            "Support for both limit and market orders"
+        ]
+    }
 }

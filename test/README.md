@@ -16,10 +16,16 @@
 - **사용법**: `python test/test_stock_signal.py`
 
 #### `test_ta_signal.py`
-- **목적**: TradingView 신호 처리 및 암호화폐 거래 테스트
+- **목적**: 신규 TradingView Signal API 테스트 (레거시 ta-signal 대체)
 - **기능**:
-  - Upbit API를 통한 암호화폐 거래 테스트
-  - TradingView 웹훅 신호 시뮬레이션
+  - 신규 `/api/tradingview/signal` 엔드포인트 테스트
+  - 암호화폐 지정가/시장가 매수/매도 테스트
+  - 간소화된 페이로드 구조 사용
+  - 향상된 에러 처리 및 응답 확인
+- **API 변경사항**:
+  - 레거시: `/ta-signal` → 신규: `/api/tradingview/signal`
+  - 중첩된 객체 구조 제거
+  - 직접적인 ticker/action/price/quantity 필드 사용
 - **사용법**: `python test/test_ta_signal.py`
 
 #### `test_pine_script.py`
@@ -47,10 +53,14 @@
   - TradingView 웹훅 시뮬레이션 데이터
 
 #### `test_requests.json`
-- **목적**: 일반 API 테스트용 JSON 샘플
+- **목적**: 신규 API 테스트용 JSON 샘플 (레거시 ta-signal 대체)
 - **내용**:
-  - 암호화폐 거래 신호 샘플
-  - API 엔드포인트 테스트 데이터
+  - 신규 `/api/tradingview/signal` API 샘플
+  - 간소화된 페이로드 구조
+  - 암호화폐 거래 신호 샘플 (지정가/시장가)
+  - 다양한 API 엔드포인트 테스트 데이터
+  - curl 명령어 예제
+  - API 마이그레이션 가이드
 
 ## 🚀 빠른 시작
 
@@ -75,15 +85,23 @@ python test/test_pine_script.py
 python test/test.py
 ```
 
-### 3. API 테스트 (curl)
+### 3. API 테스트 (curl) - 신규 API
 ```bash
-# test_stock_requests.json의 curl 예제 사용
-curl -X GET http://localhost:5000/api/trading/stock-price/005930
-
-# test_requests.json의 예제 사용
-curl -X POST http://localhost:5000/api/trading/signal \
+# 신규 암호화폐 매수 신호
+curl -X POST http://localhost:5000/api/tradingview/signal \
   -H "Content-Type: application/json" \
-  -d @test/test_requests.json
+  -d '{"ticker":"BTCKRW","action":"buy","price":95000000,"quantity":0.001,"strategy":"Test"}'
+
+# 신규 암호화폐 매도 신호  
+curl -X POST http://localhost:5000/api/tradingview/signal \
+  -H "Content-Type: application/json" \
+  -d '{"ticker":"BTCKRW","action":"sell","price":94000000,"quantity":0.001,"strategy":"Test"}'
+
+# 암호화폐 잔고 조회
+curl -X GET http://localhost:5000/api/trading/balance
+
+# 주식 거래 API (test_stock_requests.json 참조)
+curl -X GET http://localhost:5000/api/trading/stock-price/005930
 ```
 
 ## 📋 테스트 시나리오
@@ -97,12 +115,23 @@ curl -X POST http://localhost:5000/api/trading/signal \
 6. 지정가 매도 주문
 7. 시장가 매도 주문
 
-### 암호화폐 거래 테스트 순서
-1. Upbit API 연결 확인
-2. 암호화폐 잔고 조회
-3. 현재가 조회
-4. 매수 신호 테스트
-5. 매도 신호 테스트
+### 암호화폐 거래 테스트 순서 (신규 API)
+1. TradingView/Trading API 상태 확인
+2. 지원 마켓 조회
+3. 암호화폐 잔고 조회
+4. 신호 테스트 엔드포인트 확인
+5. 지정가 매수/매도 신호 테스트
+6. 시장가 매수/매도 신호 테스트
+
+### API 마이그레이션 정보
+- **레거시 엔드포인트**: `/ta-signal`
+- **신규 엔드포인트**: `/api/tradingview/signal`
+- **주요 변경사항**:
+  - 간소화된 페이로드 구조
+  - 직접적인 ticker/action/price/quantity 필드
+  - timestamp 및 exchange 필드 추가
+  - 중첩된 strategy/instrument/order 객체 제거
+  - 향상된 에러 처리 및 응답 형식
 
 ## ⚠️ 주의사항
 
