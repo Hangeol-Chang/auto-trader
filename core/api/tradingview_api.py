@@ -10,6 +10,7 @@ import logging
 import os
 import requests
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
@@ -75,6 +76,61 @@ def send_discord_notification(message: str, message_type: str = "info", channel_
     except Exception as e:
         log.error("Discord 알림 전송 중 오류: %s", e)
         return False
+
+
+def format_trading_notification(ticker: str, action: str, strategy: str, quantity: str, 
+                               status: str, success: bool = True, error_msg: str = None) -> str:
+    """매매 관련 Discord 알림 메시지 포맷팅"""
+    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    if success:
+        if action.lower() == "buy":
+            message = (
+                f"✅ **매수 주문 완료**\n"
+                f"🎯 **티커**: {ticker}\n"
+                f"💰 **상태**: {status}\n"
+                f"📊 **전략**: {strategy}\n"
+                f"📦 **수량**: {quantity}\n"
+                f"⏰ **실행 시간**: {current_time}\n"
+                f"🔄 **주문 타입**: 시장가 매수\n"
+                f"💡 **다음 단계**: 포지션 모니터링"
+            )
+        else:  # sell
+            message = (
+                f"✅ **매도 주문 완료**\n"
+                f"🎯 **티커**: {ticker}\n"
+                f"💰 **상태**: {status}\n"
+                f"📊 **전략**: {strategy}\n"
+                f"📦 **수량**: {quantity}\n"
+                f"⏰ **실행 시간**: {current_time}\n"
+                f"🔄 **주문 타입**: 시장가 매도\n"
+                f"💡 **다음 단계**: 수익률 확인"
+            )
+    else:
+        if action.lower() == "buy":
+            message = (
+                f"❌ **매수 주문 실패**\n"
+                f"🎯 **티커**: {ticker}\n"
+                f"⚠️ **상태**: {status}\n"
+                f"📊 **전략**: {strategy}\n"
+                f"📦 **요청 수량**: {quantity}\n"
+                f"⏰ **실패 시간**: {current_time}\n"
+                f"❌ **오류**: {error_msg or '알 수 없는 오류'}\n"
+                f"💡 **조치 필요**: 잔고 또는 시장 상태 확인"
+            )
+        else:  # sell
+            message = (
+                f"❌ **매도 주문 실패**\n"
+                f"🎯 **티커**: {ticker}\n"
+                f"⚠️ **상태**: {status}\n"
+                f"📊 **전략**: {strategy}\n"
+                f"📦 **요청 수량**: {quantity}\n"
+                f"⏰ **실패 시간**: {current_time}\n"
+                f"❌ **오류**: {error_msg or '알 수 없는 오류'}\n"
+                f"💡 **조치 필요**: 보유량 또는 시장 상태 확인"
+            )
+    
+    return message
 
 
 @tradingview_bp.route("/health", methods=["GET"])
@@ -177,20 +233,34 @@ def ta_signal():
                 
                 log.info("매매 신호 처리: 티커=%s, 액션=%s", ticker, action)
                 
-                # Discord 알림 전송 (매매 신호 수신 알림)
-                signal_message = f"📈 **TradingView 신호 수신**\n🎯 **티커**: {ticker}\n⚡ **액션**: {action.upper()}"
+                # Discord 알림 전송 (매매 신호 수신 알림) - 더 상세한 정보 포함
+                quantity = payload.get("order", {}).get("quantity", "N/A")
+                strategy_name = payload.get("strategy", {}).get("name", "Unknown")
+                
+                signal_message = (
+                    f"📈 **TradingView 신호 수신**\n"
+                    f"🎯 **티커**: {ticker}\n"
+                    f"⚡ **액션**: {action.upper()}\n"
+                    f"📊 **전략**: {strategy_name}\n"
+                    f"📦 **수량**: {quantity}\n"
+                    f"⏰ **시간**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                )
                 send_discord_notification(signal_message, "info")
                 
                 if action == "buy":
                     success = trading_executor.execute_buy_signal(ticker)
                     if success:
                         # 매수 성공 알림
-                        success_message = f"✅ **매수 주문 완료**\n🎯 **티커**: {ticker}\n💰 **상태**: 주문 실행됨"
+                        success_message = format_trading_notification(
+                            ticker, action, strategy_name, quantity, "주문 실행됨", True
+                        )
                         send_discord_notification(success_message, "success")
                         return jsonify({"status": "ok", "message": f"Buy order executed for {ticker}"}), 200
                     else:
                         # 매수 실패 알림
-                        error_message = f"❌ **매수 주문 실패**\n🎯 **티커**: {ticker}\n⚠️ **상태**: 주문 실행 실패"
+                        error_message = format_trading_notification(
+                            ticker, action, strategy_name, quantity, "주문 실행 실패", False
+                        )
                         send_discord_notification(error_message, "error")
                         return jsonify({"status": "error", "message": f"Buy order failed for {ticker}"}), 500
                 
@@ -198,26 +268,50 @@ def ta_signal():
                     success = trading_executor.execute_sell_signal(ticker)
                     if success:
                         # 매도 성공 알림
-                        success_message = f"✅ **매도 주문 완료**\n🎯 **티커**: {ticker}\n💰 **상태**: 주문 실행됨"
+                        success_message = format_trading_notification(
+                            ticker, action, strategy_name, quantity, "주문 실행됨", True
+                        )
                         send_discord_notification(success_message, "success")
                         return jsonify({"status": "ok", "message": f"Sell order executed for {ticker}"}), 200
                     else:
                         # 매도 실패 알림
-                        error_message = f"❌ **매도 주문 실패**\n🎯 **티커**: {ticker}\n⚠️ **상태**: 주문 실행 실패"
+                        error_message = format_trading_notification(
+                            ticker, action, strategy_name, quantity, "주문 실행 실패", False
+                        )
                         send_discord_notification(error_message, "error")
                         return jsonify({"status": "error", "message": f"Sell order failed for {ticker}"}), 500
                 
                 else:
                     log.warning("알 수 없는 액션: %s", action)
-                    # 알 수 없는 액션 알림
-                    warning_message = f"⚠️ **알 수 없는 액션**\n🎯 **티커**: {ticker}\n❓ **액션**: {action}"
+                    # 알 수 없는 액션 알림 - 더 상세한 정보 포함
+                    warning_message = (
+                        f"⚠️ **알 수 없는 액션 감지**\n"
+                        f"🎯 **티커**: {ticker}\n"
+                        f"❓ **액션**: {action}\n"
+                        f"📊 **전략**: {strategy_name}\n"
+                        f"📦 **수량**: {quantity}\n"
+                        f"⏰ **시간**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                        f"💡 **조치 필요**: TradingView 전략 설정 확인"
+                    )
                     send_discord_notification(warning_message, "warning")
                     return jsonify({"status": "ok", "message": f"Unknown action: {action}"}), 200
                     
             except Exception as trading_error:
                 log.error("매매 신호 처리 중 오류: %s", trading_error)
-                # 매매 신호 처리 오류 알림
-                error_message = f"🚨 **매매 신호 처리 오류**\n🎯 **티커**: {ticker if 'ticker' in locals() else 'Unknown'}\n❌ **오류**: {str(trading_error)}"
+                # 매매 신호 처리 오류 알림 - 더 상세한 정보 포함
+                ticker_info = ticker if 'ticker' in locals() else 'Unknown'
+                action_info = action if 'action' in locals() else 'Unknown'
+                strategy_info = strategy_name if 'strategy_name' in locals() else 'Unknown'
+                
+                error_message = (
+                    f"🚨 **매매 신호 처리 오류**\n"
+                    f"🎯 **티커**: {ticker_info}\n"
+                    f"⚡ **액션**: {action_info}\n"
+                    f"📊 **전략**: {strategy_info}\n"
+                    f"❌ **오류**: {str(trading_error)}\n"
+                    f"⏰ **오류 시간**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    f"💡 **조치 필요**: 시스템 상태 및 연결 확인"
+                )
                 send_discord_notification(error_message, "error")
                 return jsonify({"status": "error", "message": f"Trading error: {str(trading_error)}"}), 500
             
@@ -227,8 +321,15 @@ def ta_signal():
             # 파일에 로그 저장
             signal_logger.log_ta_signal_to_file(text_body or "", "ta-signal")
             
-            # 텍스트 신호 수신 알림
-            text_message = f"📝 **TradingView 텍스트 신호 수신**\n📄 **내용**: {text_body[:100]}{'...' if len(text_body or '') > 100 else ''}"
+            # 텍스트 신호 수신 알림 - 더 상세한 정보 포함
+            text_preview = text_body[:100] if text_body else ""
+            text_message = (
+                f"📝 **TradingView 텍스트 신호 수신**\n"
+                f"📄 **내용 미리보기**: {text_preview}{'...' if len(text_body or '') > 100 else ''}\n"
+                f"📏 **전체 길이**: {len(text_body or '')} 문자\n"
+                f"⏰ **수신 시간**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"💾 **저장 위치**: ta-signal.txt"
+            )
             send_discord_notification(text_message, "info")
 
         return jsonify({"status": "ok"}), 200

@@ -1,5 +1,3 @@
-from module import upbit_fetcher
-
 class Live_Orderer:
     def __init__(self):
         pass

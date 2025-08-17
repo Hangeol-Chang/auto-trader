@@ -36,7 +36,11 @@ from module.logging_utils import setup_server_logging
 
 log = logging.getLogger(__name__)
 
-app = Flask(__name__)
+# web2 폴더의 static 폴더 경로 설정
+web2_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'web2')
+static_path = os.path.join(web2_path, 'static')
+
+app = Flask(__name__, static_folder=static_path, static_url_path='/static')
 
 # Blueprint 등록
 app.register_blueprint(discord_bp)
@@ -52,7 +56,6 @@ trading_executor = TradingExecutor(upbit_api)
 @app.route("/", methods=["GET"])
 def root():
     """메인 대시보드 페이지 제공"""
-    web2_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'web2')
     return send_from_directory(web2_path, 'index.html')
 
 

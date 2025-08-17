@@ -2,4 +2,3 @@ flask
 requests
 PyJWT
 cryptography
-python-dotenv 

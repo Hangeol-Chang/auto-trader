@@ -10,6 +10,7 @@ import logging
 import os
 import requests
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
@@ -77,12 +78,42 @@ def send_to_discord_webhook(message: str, webhook_url: str = None) -> bool:
 
 @discord_bp.route("/health", methods=["GET"])
 def discord_health():
-    """디스코드 봇 API 상태 확인"""
-    return jsonify({
-        "status": "ok",
-        "service": "discord-bot-api",
-        "version": "1.0.0"
-    }), 200
+    """디스코드 봇 API 상태 확인 및 Discord로 상태 메시지 전송"""
+    try:
+        # Discord로 상태 확인 메시지 전송
+        health_message = (
+            "🏥 **Discord Bot API Health Check**\n"
+            "✅ Discord Bot API is running normally\n"
+            f"📅 Status check time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            "🔧 Service: discord-bot-api\n"
+            "📦 Version: 1.0.0"
+        )
+        
+        # Discord 웹훅으로 메시지 전송
+        message_sent = send_to_discord_webhook(health_message)
+        
+        response_data = {
+            "status": "ok",
+            "service": "discord-bot-api", 
+            "version": "1.0.0",
+            "discord_notification_sent": message_sent
+        }
+        
+        # Discord 전송 실패 시 경고 추가
+        if not message_sent:
+            response_data["warning"] = "Health check successful but Discord notification failed"
+            
+        return jsonify(response_data), 200
+        
+    except Exception as e:
+        log.error("Discord health check 중 오류: %s", e)
+        return jsonify({
+            "status": "error",
+            "service": "discord-bot-api",
+            "version": "1.0.0", 
+            "error": str(e),
+            "discord_notification_sent": False
+        }), 500
 
 
 @discord_bp.route("/config", methods=["GET"])

@@ -3,21 +3,6 @@ import threading
 import time
 import logging
 import signal
-import sys
-import os
-from pathlib import Path
-
-# .env 파일 로드
-try:
-    from dotenv import load_dotenv
-    env_path = Path(__file__).parent / '.env'
-    if env_path.exists():
-        load_dotenv(env_path)
-        print(f"환경변수 파일 로드: {env_path}")
-    else:
-        print("환경변수 파일(.env)이 없습니다. 기본값을 사용합니다.")
-except ImportError:
-    print("python-dotenv가 설치되지 않았습니다. 환경변수 파일을 사용하려면 'pip install python-dotenv'를 실행하세요.")
 
 from core import visualizer, trader, server
 from module import stock_data_manager

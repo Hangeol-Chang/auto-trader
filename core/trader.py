@@ -157,7 +157,7 @@ class Live_Trader(I_Trader):
 ######################################################################################
 
 from strategy_crypto import test_strategy
-from module import upbit_fetcher, crypto_orderer
+from module import crypto_orderer
 
 import json
 class Live_Crypto_Trader(I_Trader):
