@@ -131,6 +131,7 @@ def get_keys(invest_type="VPS", index=0):
         "WS_APPROVAL_KEY": tokens[invest_type][str(index)]['WS_APPROVAL_KEY'],        
         "URL_BASE": keys[invest_type][index]['URL_BASE'],
         "URL_BASE_WS": keys[invest_type][index]['URL_BASE_WS'],
+        "CANO": keys[invest_type][index]['CANO'],  # 계좌번호 추가
     }
 
 def change_invest_type(invest_type="VPS", index=0):

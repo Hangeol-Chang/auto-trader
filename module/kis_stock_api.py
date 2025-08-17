@@ -235,7 +235,7 @@ class KISStockAPI:
         """계좌번호 앞 8자리 반환"""
         try:
             keys = token_manager.get_keys(self.invest_type, self.index)
-            account_no = keys.get('ACCOUNT_NO', '')
+            account_no = str(keys.get('CANO', ''))  # CANO를 문자열로 변환
             return account_no[:8] if account_no else ''
         except Exception:
             return ''
@@ -244,7 +244,7 @@ class KISStockAPI:
         """계좌번호 뒤 2자리 반환"""
         try:
             keys = token_manager.get_keys(self.invest_type, self.index)
-            account_no = keys.get('ACCOUNT_NO', '')
-            return account_no[8:10] if len(account_no) >= 10 else ''
+            account_no = str(keys.get('CANO', ''))  # CANO를 문자열로 변환
+            return account_no[8:10] if len(account_no) >= 10 else '01'  # 기본값 '01'
         except Exception:
-            return ''
+            return '01'  # 기본값 '01'

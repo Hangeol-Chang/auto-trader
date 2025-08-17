@@ -28,6 +28,7 @@ trading_bp = Blueprint('trading', __name__, url_prefix='/api/trading')
 upbit_api = UpbitAPI()
 trading_executor = TradingExecutor(upbit_api)
 kis_stock_api = KISStockAPI(invest_type="VPS")  # 모의투자로 기본 설정
+# kis_stock_api = KISStockAPI(invest_type="PROD")  # 실제 투자로 설정
 
 
 @trading_bp.route("/health", methods=["GET"])
