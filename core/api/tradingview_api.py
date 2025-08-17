@@ -79,7 +79,8 @@ def send_discord_notification(message: str, message_type: str = "info", channel_
 
 
 def format_trading_notification(ticker: str, action: str, strategy: str, quantity: str, 
-                               status: str, success: bool = True, error_msg: str = None) -> str:
+                               status: str, success: bool = True, error_msg: str = None, 
+                               order_type: str = "시장가") -> str:
     """매매 관련 Discord 알림 메시지 포맷팅"""
     current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
@@ -92,7 +93,7 @@ def format_trading_notification(ticker: str, action: str, strategy: str, quantit
                 f"📊 **전략**: {strategy}\n"
                 f"📦 **수량**: {quantity}\n"
                 f"⏰ **실행 시간**: {current_time}\n"
-                f"🔄 **주문 타입**: 시장가 매수\n"
+                f"🔄 **주문 타입**: {order_type} 매수\n"
                 f"💡 **다음 단계**: 포지션 모니터링"
             )
         else:  # sell
@@ -103,7 +104,7 @@ def format_trading_notification(ticker: str, action: str, strategy: str, quantit
                 f"📊 **전략**: {strategy}\n"
                 f"📦 **수량**: {quantity}\n"
                 f"⏰ **실행 시간**: {current_time}\n"
-                f"🔄 **주문 타입**: 시장가 매도\n"
+                f"🔄 **주문 타입**: {order_type} 매도\n"
                 f"💡 **다음 단계**: 수익률 확인"
             )
     else:
@@ -185,8 +186,8 @@ def ta_signal():
         "strategy": {
             "name": "SMI/RSI",
             "settings": {
-                "source": "[B]",
-                "parameters": "20, 20, 1.5, 14, 5, 2"
+            "source": "[B]",
+            "parameters": "20, 20, 1.5, 14, 5, 2"
             }
         },
         "instrument": {
@@ -194,12 +195,13 @@ def ta_signal():
         },
         "order": {
             "action": "{{strategy.order.action}}",
+            "price": "{{strategy.order.price}}",
             "quantity": "{{strategy.order.contracts}}"
         },
         "position": {
             "new_size": "{{strategy.position_size}}"
         }
-    }
+    } 
     """
     try:
         payload: Dict[str, Any] | None = None
@@ -235,6 +237,7 @@ def ta_signal():
                 
                 # Discord 알림 전송 (매매 신호 수신 알림) - 더 상세한 정보 포함
                 quantity = payload.get("order", {}).get("quantity", "N/A")
+                price = payload.get("order", {}).get("price", "N/A")  # 가격 정보 추가
                 strategy_name = payload.get("strategy", {}).get("name", "Unknown")
                 
                 signal_message = (
@@ -243,6 +246,7 @@ def ta_signal():
                     f"⚡ **액션**: {action.upper()}\n"
                     f"📊 **전략**: {strategy_name}\n"
                     f"📦 **수량**: {quantity}\n"
+                    f"💰 **가격**: {price}\n"
                     f"⏰ **시간**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
                 )
                 send_discord_notification(signal_message, "info")
@@ -265,11 +269,22 @@ def ta_signal():
                         return jsonify({"status": "error", "message": f"Buy order failed for {ticker}"}), 500
                 
                 elif action == "sell":
-                    success = trading_executor.execute_sell_signal(ticker)
+                    # TradingView에서 받은 가격 정보를 사용하여 지정가 매도
+                    sell_price = None
+                    try:
+                        if price and price != "N/A":
+                            sell_price = float(price)
+                            log.info("TradingView 지정가 매도 - 티커: %s, 가격: %s", ticker, sell_price)
+                    except (ValueError, TypeError):
+                        log.warning("가격 정보 파싱 실패, 시장가 매도로 전환: %s", price)
+                        sell_price = None
+                    
+                    success = trading_executor.execute_sell_signal(ticker, sell_price)
                     if success:
                         # 매도 성공 알림
+                        order_type = "지정가" if sell_price else "시장가"
                         success_message = format_trading_notification(
-                            ticker, action, strategy_name, quantity, "주문 실행됨", True
+                            ticker, action, strategy_name, quantity, f"{order_type} 주문 실행됨", True, order_type=order_type
                         )
                         send_discord_notification(success_message, "success")
                         return jsonify({"status": "ok", "message": f"Sell order executed for {ticker}"}), 200

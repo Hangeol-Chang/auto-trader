@@ -66,6 +66,7 @@ def test_sell_signal(ticker="BTCKRW"):
         },
         "order": {
             "action": "sell",
+            "price": "50000000",  # 5천만원 (예시 가격)
             "quantity": "1"
         },
         "position": {

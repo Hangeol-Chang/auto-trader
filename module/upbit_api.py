@@ -211,14 +211,30 @@ class UpbitAPI:
             
             if side == 'bid':
                 # 매수: 업비트에서는 시장가 매수 시 ord_type을 'price'로 설정
-                params['ord_type'] = 'price'
-                if price:
+                if ord_type == 'limit' and price:
+                    # 지정가 매수
+                    params['ord_type'] = 'limit'
                     params['price'] = str(int(price))
+                    if volume:
+                        params['volume'] = str(volume)
+                else:
+                    # 시장가 매수 (기본)
+                    params['ord_type'] = 'price'
+                    if price:
+                        params['price'] = str(int(price))
             elif side == 'ask':
-                # 매도: 시장가 매도 시 ord_type을 'market'으로 설정
-                params['ord_type'] = 'market'
-                if volume:
-                    params['volume'] = str(volume)
+                # 매도
+                if ord_type == 'limit' and price:
+                    # 지정가 매도
+                    params['ord_type'] = 'limit'
+                    params['price'] = str(int(price))
+                    if volume:
+                        params['volume'] = str(volume)
+                else:
+                    # 시장가 매도 (기본)
+                    params['ord_type'] = 'market'
+                    if volume:
+                        params['volume'] = str(volume)
             
             log.info("주문 파라미터: %s", params)
             

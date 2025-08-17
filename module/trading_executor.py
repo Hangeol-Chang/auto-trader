@@ -91,8 +91,13 @@ class TradingExecutor:
             log.error("매수 신호 실행 중 오류: %s", e)
             return False
     
-    def execute_sell_signal(self, ticker: str) -> bool:
-        """매도 신호 실행 - 해당 코인 전량 매도"""
+    def execute_sell_signal(self, ticker: str, sell_price: Optional[float] = None) -> bool:
+        """매도 신호 실행 - 해당 코인 전량 매도
+        
+        Args:
+            ticker: 매도할 코인 티커
+            sell_price: 지정가 매도 가격 (None이면 시장가 매도)
+        """
         try:
             # 티커로 정확한 마켓 코드 찾기
             market = self.api.find_market_by_ticker(ticker)
@@ -119,17 +124,35 @@ class TradingExecutor:
                                estimated_value, coin_balance, coin_symbol, self.min_sell_value)
                     return False
             
-            log.info("매도 신호 처리 - 티커: %s, 마켓: %s, 수량: %s", ticker, market, coin_balance)
-            
-            # 시장가 매도 주문 (업비트에서는 ord_type='market' 사용)
-            result = self.api.place_order(market, 'ask', volume=coin_balance)
-            
-            if result:
-                log.info("매도 주문 성공 - 마켓: %s, 수량: %s", market, coin_balance)
-                return True
+            # 지정가 vs 시장가 결정
+            if sell_price:
+                # 지정가 매도
+                log.info("지정가 매도 신호 처리 - 티커: %s, 마켓: %s, 수량: %s, 가격: %s원", 
+                        ticker, market, coin_balance, sell_price)
+                
+                # 지정가 매도 주문 (업비트에서는 ord_type='limit' 사용)
+                result = self.api.place_order(market, 'ask', volume=coin_balance, price=sell_price, ord_type='limit')
+                
+                if result:
+                    log.info("지정가 매도 주문 성공 - 마켓: %s, 수량: %s, 가격: %s원", market, coin_balance, sell_price)
+                    return True
+                else:
+                    log.error("지정가 매도 주문 실패 - 마켓: %s", market)
+                    return False
             else:
-                log.error("매도 주문 실패 - 마켓: %s", market)
-                return False
+                # 시장가 매도 (기존 로직)
+                log.info("시장가 매도 신호 처리 - 티커: %s, 마켓: %s, 수량: %s", ticker, market, coin_balance)
+                
+                # 시장가 매도 주문 (업비트에서는 ord_type='market' 사용)
+                result = self.api.place_order(market, 'ask', volume=coin_balance)
+                
+                if result:
+                    log.info("시장가 매도 주문 성공 - 마켓: %s, 수량: %s", market, coin_balance)
+                    return True
+                else:
+                    log.error("시장가 매도 주문 실패 - 마켓: %s", market)
+                    return False
+                    
         except Exception as e:
             log.error("매도 신호 실행 중 오류: %s", e)
             return False
