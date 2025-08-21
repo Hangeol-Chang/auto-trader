@@ -25,3 +25,5 @@ config/domain.txt
 PineScript
 
 data/ta-*.txt
+
+model/crypto_rl_models/

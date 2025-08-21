@@ -47,7 +47,7 @@ class Network:
         return loss
     
     def save_model(self, model_path):
-        with model_path is not None and self.model is not None:
+        if model_path is not None and self.model is not None:
             self.model.save_weights(model_path, overwrite=True)
 
     def load_model(self, model_path):
@@ -65,6 +65,8 @@ class Network:
             return LSTMNetwork.get_network_head(Input((num_steps, input_dim)))
         elif net == 'cnn':
             return CNN.get_network_head(Input((num_steps, input_dim)))
+        elif net == 'dnn_lstm':
+            return DNNLSTMNetwork.get_network_head(Input((num_steps, input_dim)))
     
 # DNN 클래스
 class DNN(Network):
@@ -244,4 +246,88 @@ class CNN(Network):
     def predict(self, sample):
         sample = np.array(sample).reshape(
             (-1, self.num_steps, self.input_dim, 1))
+        return super().predict(sample)
+
+
+# DNN+LSTM 하이브리드 클래스
+class DNNLSTMNetwork(Network):
+    """DNN과 LSTM을 결합한 하이브리드 신경망"""
+    def __init__(self, *args, num_steps=1, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.num_steps = num_steps
+        inp = None
+        output = None
+        if self.shared_network is None:
+            inp = Input((self.num_steps, self.input_dim))
+            output = self.get_network_head(inp).output
+        else:
+            inp = self.shared_network.input
+            output = self.shared_network.output
+        output = Dense(
+            self.output_dim, activation=self.activation, 
+            kernel_initializer='random_normal')(output)
+        self.model = Model(inp, output)
+        self.model.compile(
+            optimizer=SGD(learning_rate=self.lr), loss=self.loss)
+
+    @staticmethod
+    def get_network_head(inp):
+        """
+        DNN+LSTM 하이브리드 구조:
+        Input -> DNN(256, 128) -> LSTM(64, 32) -> Output
+        
+        DNN 부분으로 특성을 추출한 후, 
+        LSTM으로 시계열 패턴을 학습하는 구조
+        """
+        # 첫 번째 DNN 레이어들 (특성 추출)
+        output = Dense(256, activation='sigmoid', 
+            kernel_initializer='random_normal')(inp)
+        output = BatchNormalization()(output)
+        output = Dropout(0.1)(output)
+        
+        output = Dense(128, activation='sigmoid', 
+            kernel_initializer='random_normal')(output)
+        output = BatchNormalization()(output)
+        output = Dropout(0.1)(output)
+        
+        # LSTM 레이어들 (시계열 패턴 학습)
+        output = LSTM(64, return_sequences=True, 
+            kernel_initializer='random_normal')(output)
+        output = BatchNormalization()(output)
+        output = Dropout(0.1)(output)
+        
+        output = LSTM(32, return_sequences=False, 
+            kernel_initializer='random_normal')(output)
+        output = BatchNormalization()(output)
+        output = Dropout(0.1)(output)
+        
+        return Model(inp, output)
+
+    def train_on_batch(self, x, y):
+        x = np.array(x).reshape((-1, self.num_steps, self.input_dim))
+        return super().train_on_batch(x, y)
+
+    def predict(self, sample):
+        # 입력 샘플의 차원에 따라 적절히 reshape
+        sample = np.array(sample)
+        
+        if len(sample.shape) == 1:
+            # 1D 샘플인 경우: (features,) -> (1, num_steps, features)
+            # 같은 샘플을 num_steps만큼 반복하여 시계열 만들기
+            sample = np.tile(sample, (self.num_steps, 1))
+            sample = sample.reshape((1, self.num_steps, self.input_dim))
+        elif len(sample.shape) == 2:
+            if sample.shape[0] == self.num_steps:
+                # 이미 시계열 형태인 경우: (num_steps, features) -> (1, num_steps, features)
+                sample = sample.reshape((1, self.num_steps, self.input_dim))
+            else:
+                # 배치 형태인 경우: (batch, features) -> (batch, num_steps, features)
+                batch_size = sample.shape[0]
+                sample = np.tile(sample[:, np.newaxis, :], (1, self.num_steps, 1))
+        elif len(sample.shape) == 3:
+            # 이미 올바른 형태: (batch, num_steps, features)
+            pass
+        else:
+            raise ValueError(f"Unsupported sample shape: {sample.shape}")
+            
         return super().predict(sample)

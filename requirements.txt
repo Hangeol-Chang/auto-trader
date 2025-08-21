@@ -2,3 +2,8 @@ flask
 requests
 PyJWT
 cryptography
+numpy
+pandas
+tensorflow
+tqdm
+matplotlib
