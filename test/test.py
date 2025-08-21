@@ -8,8 +8,8 @@ import requests
 import json
 
 from core import visualizer, trader
-from module import stock_data_manager as sd_m
-from module import stock_data_manager_ws as sd_m_ws
+from module.stock import stock_data_manager as sd_m
+from module.stock import stock_data_manager_ws as sd_m_ws
 from module import token_manager as tm
 
 # INVEST_TYPE = "PROD"  # 실전투자

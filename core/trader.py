@@ -10,8 +10,9 @@
 import logging
 import time
 import pandas as pd
-from module import stock_data_manager, stock_data_manager_ws
-from module import stock_orderer, token_manager
+from module.stock import stock_data_manager, stock_data_manager_ws
+from module.stock import stock_orderer
+from module import token_manager
 from strategy.strategy import SignalType
 from strategy import    \
     ma_strategy, \
@@ -157,7 +158,7 @@ class Live_Trader(I_Trader):
 ######################################################################################
 
 from strategy_crypto import test_strategy
-from module import crypto_orderer
+from module.crypto import crypto_orderer
 
 import json
 class Live_Crypto_Trader(I_Trader):

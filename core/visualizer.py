@@ -10,7 +10,7 @@ import importlib
 import sys
 from datetime import datetime
 
-from module import stock_data_manager
+from module.stock import stock_data_manager
 from core import trader
 
 # Flask 앱 초기화
@@ -212,7 +212,7 @@ def run_backtest():
 def reload_modules():
     """개발용: 모듈 리로드 API"""
     try:
-        modules_to_reload = ['core.trader', 'module.stock_data_manager']
+        modules_to_reload = ['core.trader', 'module.stock.stock_data_manager']
         reloaded = []
         
         for module_name in modules_to_reload:

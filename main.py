@@ -5,7 +5,7 @@ import logging
 import signal
 
 from core import visualizer, trader, server
-from module import stock_data_manager
+from module.stock import stock_data_manager
 
 # INVEST_TYPE = "PROD"  # 실전투자
 INVEST_TYPE = "VPS"    # 모의투자

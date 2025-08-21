@@ -17,7 +17,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from module.upbit_api import UpbitAPI
 from module.trading_executor import TradingExecutor
-from module.kis_stock_api import KISStockAPI
+from module.stock.kis_stock_api import KISStockAPI
 
 log = logging.getLogger(__name__)
 
