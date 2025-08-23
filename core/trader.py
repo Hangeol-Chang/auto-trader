@@ -209,10 +209,12 @@ class Live_Crypto_Trader(I_Trader):
         self.models = {}  # 각 마켓별 모델
         self._last_predictions = {}  # 마켓별 마지막 예측 결과 저장
         self._last_signal_times = {}  # 마켓별 마지막 신호 생성 시간
+        self._last_actions = {}  # 마켓별 마지막 실행된 액션 (중복 신호 방지용)
         
         # 초기화
         self._initialize_models()
         self._initialize_market_data()
+        self._initialize_trading_states()
         
         log.info(f"Live_Crypto_Trader 초기화 완료: {self.markets}")
 
@@ -371,6 +373,110 @@ class Live_Crypto_Trader(I_Trader):
             except Exception as e:
                 log.error(f"[{market}] 초기 데이터 로드 중 오류: {e}")
                 self.market_data[market] = pd.DataFrame()
+
+    def _initialize_trading_states(self):
+        """잔고 기반 초기 매수/매도 상태 설정"""
+        try:
+            log.info("현재 잔고를 확인하여 초기 매매 상태를 설정합니다...")
+            
+            # orderer가 없으면 스킵
+            if not hasattr(self, 'orderer'):
+                log.warning("orderer가 초기화되지 않았습니다. 잔고 기반 상태 설정을 스킵합니다.")
+                return
+                
+            if not hasattr(self.orderer, 'upbit_api'):
+                log.warning("업비트 API가 초기화되지 않았습니다. 잔고 기반 상태 설정을 스킵합니다.")
+                return
+            
+            # 전체 잔고 조회
+            balances = self.orderer.upbit_api.get_balances()
+            
+            if not balances:
+                log.warning("잔고 조회에 실패했습니다. 모든 마켓을 매도 상태로 초기화합니다.")
+                return
+            
+            # 현금 잔고 (KRW) 계산
+            krw_balance = 0
+            for balance in balances:
+                if balance['currency'] == 'KRW':
+                    krw_balance = float(balance['balance'])
+                    break
+            
+            log.info(f"현재 KRW 잔고: {krw_balance:,.0f}원")
+            
+            # 각 코인의 현재 시세 조회 및 총 자산 계산
+            total_asset_value = krw_balance
+            coin_values = {}
+            
+            for balance in balances:
+                if balance['currency'] != 'KRW' and float(balance['balance']) > 0:
+                    currency = balance['currency']
+                    amount = float(balance['balance'])
+                    market = f"KRW-{currency}"
+                    
+                    # 현재 시세 조회
+                    try:
+                        current_price = self.orderer.upbit_api.get_current_price(market)
+                        if current_price:
+                            coin_value = amount * current_price
+                            coin_values[market] = coin_value
+                            total_asset_value += coin_value
+                            log.info(f"{market}: {amount:,.4f} ({coin_value:,.0f}원)")
+                    except Exception as e:
+                        log.error(f"{market} 시세 조회 실패: {e}")
+            
+            log.info(f"총 자산 가치: {total_asset_value:,.0f}원")
+            
+            # 5% 이상 보유한 코인을 매수 상태로 설정
+            threshold = total_asset_value * 0.05
+            log.info(f"매수 상태 임계값 (5%): {threshold:,.0f}원")
+            
+            for market, coin_value in coin_values.items():
+                if market in self.markets:
+                    if coin_value >= threshold:
+                        self._last_actions[market] = 'BUY'
+                        log.info(f"[{market}] 매수 상태로 초기화 (보유 가치: {coin_value:,.0f}원, {coin_value/total_asset_value*100:.1f}%)")
+                    else:
+                        log.info(f"[{market}] 매도 상태로 초기화 (보유 가치: {coin_value:,.0f}원, {coin_value/total_asset_value*100:.1f}%)")
+            
+            # 모니터링 대상이지만 보유하지 않은 코인들은 매도 상태로 초기화
+            for market in self.markets:
+                if market not in self._last_actions:
+                    log.info(f"[{market}] 매도 상태로 초기화 (미보유)")
+                    
+        except Exception as e:
+            log.error(f"초기 매매 상태 설정 중 오류: {e}")
+            log.info("모든 마켓을 매도 상태로 초기화합니다.")
+    
+    def _should_skip_signal(self, market, action):
+        """
+        신호 중복 방지 검사
+        - 마지막 액션이 BUY였다면, SELL 신호가 올 때까지 BUY 신호 무시
+        - 마지막 액션이 SELL이었다면, BUY 신호가 올 때까지 SELL 신호 무시
+        """
+        if market not in self._last_actions:
+            return False  # 첫 번째 신호는 허용
+        
+        last_action = self._last_actions[market]
+        
+        # 같은 액션이 연속으로 발생하는 경우 스킵
+        if last_action == action:
+            log.info(f"[{market}] 중복 신호 스킵: {action} (마지막 액션: {last_action})")
+            return True
+        
+        return False  # 다른 액션인 경우 허용
+    
+    def _update_last_action(self, market, action, success=True):
+        """
+        마지막 액션 업데이트
+        - success=True: 주문이 성공한 경우에만 업데이트
+        - success=False: 주문이 실패한 경우 업데이트하지 않음 (재시도 가능하도록)
+        """
+        if success:
+            self._last_actions[market] = action
+            log.info(f"[{market}] 마지막 액션 업데이트: {action}")
+        else:
+            log.info(f"[{market}] 주문 실패로 인한 마지막 액션 유지: {self._last_actions.get(market, 'None')}")
     
     def _calculate_technical_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         """기술적 지표 계산"""
@@ -701,6 +807,10 @@ class Live_Crypto_Trader(I_Trader):
             
             # 거래 실행
             if action != 'HOLD' and confidence >= self.min_confidence:
+                # 중복 신호 검사
+                if self._should_skip_signal(market, action):
+                    return  # 중복 신호인 경우 주문 실행하지 않음
+                
                 order_data = {
                     'action': action,
                     'market': market,
@@ -714,10 +824,15 @@ class Live_Crypto_Trader(I_Trader):
                 result = self.orderer.place_order(order_data)
                 if result:
                     log.info(f"[{market}] 주문 실행 성공: {action} - {result.get('uuid')}")
+                    # 주문 성공시 마지막 액션 업데이트
+                    self._update_last_action(market, action, success=True)
                 else:
                     log.error(f"[{market}] 주문 실행 실패")
                     log.error(f"[{market}] 주문 데이터: {order_data}")
                     log.error(f"[{market}] 반환 결과: {result}")
+                    
+                    # 주문 실패시 마지막 액션 유지 (재시도 가능하도록)
+                    self._update_last_action(market, action, success=False)
                     
                     # orderer에서 더 상세한 오류 정보 가져오기
                     if hasattr(self.orderer, 'last_error'):
