@@ -67,25 +67,38 @@ def train_hybrid_model(market='KRW-BTC', epochs=100, balance=10000000,
         
         print("✅ 하이브리드 모델 학습 완료!")
         
-        # 학습 결과 저장
+        # 학습 결과 저장 - learner의 자체 save 메서드 사용
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
-        # 모델 파일명 생성
+        # learner.fit()에서 이미 모델이 저장되었으므로 최신 모델 파일 찾기
         market_code = market.replace('-', '_')
-        model_filename = f"hybrid_network_{market_code}_{timestamp}.weights.h5"
-        summary_filename = f"hybrid_summary_{market}_{timestamp}.json"
         
-        # 모델 저장
-        model_path = os.path.join(output_path, model_filename)
-        summary_path = os.path.join(output_path, summary_filename)
-        
-        learner.save_model(model_path, summary_path)
-        
-        print(f"💾 모델 저장 완료:")
-        print(f"   모델: {model_path}")
-        print(f"   요약: {summary_path}")
-        
-        return model_path, summary_path
+        # 생성된 모델 파일 찾기
+        if os.path.exists(output_path):
+            import glob
+            pattern = f"value_network_{market_code}_*.weights.h5"
+            model_files = glob.glob(os.path.join(output_path, pattern))
+            
+            if model_files:
+                # 가장 최신 모델 파일
+                model_path = max(model_files, key=os.path.getmtime)
+                
+                # 요약 파일 경로 (예상)
+                summary_pattern = f"*{market}*{timestamp.split('_')[0]}*.json"
+                summary_files = glob.glob(os.path.join(output_path, summary_pattern))
+                summary_path = summary_files[0] if summary_files else f"{output_path}/summary_{market}_{timestamp}.json"
+                
+                print(f"💾 모델 저장 완료:")
+                print(f"   모델: {model_path}")
+                print(f"   요약: {summary_path}")
+                
+                return model_path, summary_path
+            else:
+                print(f"❌ 모델 파일을 찾을 수 없음: {output_path}/{pattern}")
+                return None, None
+        else:
+            print(f"❌ 출력 경로가 존재하지 않음: {output_path}")
+            return None, None
         
     except Exception as e:
         print(f"❌ 학습 중 오류 발생: {e}")

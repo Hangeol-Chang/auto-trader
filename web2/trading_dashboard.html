@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Crypto Trading Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-running { background-color: #4CAF50; }
+        .status-stopped { background-color: #f44336; }
+        .status-warning { background-color: #ff9800; }
+
+        .market-item {
+            background: #f8f9fa;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .market-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .market-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #333;
+        }
+
+        .prediction {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .prediction.buy { background-color: #e8f5e8; color: #2e7d32; }
+        .prediction.sell { background-color: #ffebee; color: #c62828; }
+        .prediction.hold { background-color: #f3f4f6; color: #5f6368; }
+
+        .confidence {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+
+        .price {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #1976d2;
+            margin-top: 8px;
+        }
+
+        .balance-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .balance-item:last-child {
+            border-bottom: none;
+        }
+
+        .control-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn-primary { background-color: #667eea; color: white; }
+        .btn-secondary { background-color: #6c757d; color: white; }
+        .btn-danger { background-color: #dc3545; color: white; }
+
+        .btn:hover {
+            opacity: 0.8;
+        }
+
+        .refresh-time {
+            text-align: center;
+            color: white;
+            margin-top: 20px;
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .error {
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Live Crypto Trading Dashboard</h1>
+            <p>하이브리드 DNN+LSTM 모델 기반 실시간 암호화폐 자동매매</p>
+        </div>
+
+        <div class="dashboard" id="dashboard">
+            <div class="loading">
+                <p>대시보드 로딩 중...</p>
+            </div>
+        </div>
+
+        <div class="refresh-time" id="refreshTime">
+            마지막 업데이트: -
+        </div>
+    </div>
+
+    <script>
+        class TradingDashboard {
+            constructor() {
+                this.dashboardElement = document.getElementById('dashboard');
+                this.refreshTimeElement = document.getElementById('refreshTime');
+                this.refreshInterval = 5000; // 5초마다 업데이트
+                this.init();
+            }
+
+            async init() {
+                await this.loadData();
+                setInterval(() => this.loadData(), this.refreshInterval);
+            }
+
+            async loadData() {
+                try {
+                    const response = await fetch('/api/monitoring/traders');
+                    const data = await response.json();
+                    
+                    if (data.status === 'ok') {
+                        this.renderDashboard(data);
+                        this.updateRefreshTime();
+                    } else {
+                        this.showError('데이터 로딩 실패: ' + data.message);
+                    }
+                } catch (error) {
+                    this.showError('API 연결 실패: ' + error.message);
+                }
+            }
+
+            renderDashboard(data) {
+                const traders = data.traders || [];
+                
+                if (traders.length === 0) {
+                    this.dashboardElement.innerHTML = `
+                        <div class="card">
+                            <h3>트레이더 없음</h3>
+                            <p>실행 중인 트레이더가 없습니다.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                this.dashboardElement.innerHTML = traders.map(trader => 
+                    this.renderTraderCard(trader)
+                ).join('');
+            }
+
+            renderTraderCard(trader) {
+                const statusClass = trader.is_running ? 'status-running' : 'status-stopped';
+                const statusText = trader.is_running ? '실행 중' : '중지됨';
+                
+                return `
+                    <div class="card">
+                        <h3>
+                            <span class="status-indicator ${statusClass}"></span>
+                            ${trader.trader_type} #${trader.trader_id}
+                        </h3>
+                        <p><strong>상태:</strong> ${statusText}</p>
+                        
+                        ${this.renderMarkets(trader.markets, trader.trader_id)}
+                        ${this.renderBalance(trader.balance_info)}
+                        ${this.renderControls(trader.trader_id, trader.is_running)}
+                    </div>
+                `;
+            }
+
+            renderMarkets(markets, traderId) {
+                if (!markets || markets.length === 0) {
+                    return '<p><strong>거래 마켓:</strong> 없음</p>';
+                }
+
+                return `
+                    <div style="margin: 15px 0;">
+                        <strong>거래 마켓 (${markets.length}개):</strong>
+                        <div style="margin-top: 10px;">
+                            ${markets.map(market => `
+                                <div class="market-item" onclick="this.loadMarketDetails('${traderId}', '${market}')">
+                                    <div class="market-header">
+                                        <span class="market-name">${market}</span>
+                                    </div>
+                                    <div id="market-${traderId}-${market.replace('-', '_')}" class="market-details">
+                                        로딩 중...
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderBalance(balanceInfo) {
+                if (!balanceInfo || !balanceInfo.balances) {
+                    return '<p><strong>잔고:</strong> 정보 없음</p>';
+                }
+
+                const krwBalance = balanceInfo.balances.find(b => b.currency === 'KRW');
+                const cryptoBalances = balanceInfo.balances.filter(b => b.currency !== 'KRW' && parseFloat(b.balance) > 0);
+
+                return `
+                    <div style="margin: 15px 0;">
+                        <strong>잔고 정보:</strong>
+                        <div style="margin-top: 10px;">
+                            ${krwBalance ? `
+                                <div class="balance-item">
+                                    <span>KRW</span>
+                                    <span>${parseInt(krwBalance.balance).toLocaleString()}원</span>
+                                </div>
+                            ` : ''}
+                            ${cryptoBalances.map(balance => `
+                                <div class="balance-item">
+                                    <span>${balance.currency}</span>
+                                    <span>${parseFloat(balance.balance).toFixed(6)}</span>
+                                </div>
+                            `).join('')}
+                            ${balanceInfo.total_krw ? `
+                                <div class="balance-item" style="font-weight: bold; border-top: 2px solid #667eea; padding-top: 10px;">
+                                    <span>총 자산 (KRW)</span>
+                                    <span>${parseInt(balanceInfo.total_krw).toLocaleString()}원</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderControls(traderId, isRunning) {
+                return `
+                    <div class="control-buttons">
+                        <button class="btn btn-primary" onclick="dashboard.refreshTrader(${traderId})">
+                            새로고침
+                        </button>
+                        <button class="btn btn-secondary" onclick="dashboard.showTraderDetails(${traderId})">
+                            상세정보
+                        </button>
+                        ${isRunning ? `
+                            <button class="btn btn-danger" onclick="dashboard.stopTrader(${traderId})">
+                                중지
+                            </button>
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            async loadMarketDetails(traderId, market) {
+                try {
+                    const response = await fetch(`/api/monitoring/traders/${traderId}/markets`);
+                    const data = await response.json();
+                    
+                    if (data.status === 'ok') {
+                        const marketInfo = data.markets.find(m => m.market === market);
+                        if (marketInfo) {
+                            const elementId = `market-${traderId}-${market.replace('-', '_')}`;
+                            const element = document.getElementById(elementId);
+                            if (element) {
+                                element.innerHTML = this.renderMarketDetails(marketInfo);
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('마켓 상세 정보 로딩 실패:', error);
+                }
+            }
+
+            renderMarketDetails(marketInfo) {
+                const prediction = marketInfo.last_prediction;
+                
+                if (!prediction) {
+                    return `
+                        <div style="color: #666; font-size: 0.9em;">
+                            예측 정보 없음
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div>
+                        <span class="prediction ${prediction.action.toLowerCase()}">${prediction.action}</span>
+                        <span class="confidence">${(prediction.confidence * 100).toFixed(1)}%</span>
+                        <div class="price">${parseInt(prediction.price).toLocaleString()}원</div>
+                        <div style="font-size: 0.8em; color: #666; margin-top: 5px;">
+                            ${new Date(prediction.timestamp).toLocaleTimeString()}
+                        </div>
+                    </div>
+                `;
+            }
+
+            async refreshTrader(traderId) {
+                await this.loadData();
+            }
+
+            async showTraderDetails(traderId) {
+                try {
+                    const response = await fetch(`/api/monitoring/traders/${traderId}`);
+                    const data = await response.json();
+                    
+                    if (data.status === 'ok') {
+                        alert(JSON.stringify(data.trader, null, 2));
+                    }
+                } catch (error) {
+                    alert('상세 정보 로딩 실패: ' + error.message);
+                }
+            }
+
+            async stopTrader(traderId) {
+                if (!confirm('정말로 트레이더를 중지하시겠습니까?')) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/monitoring/traders/${traderId}/control`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ action: 'stop' })
+                    });
+                    
+                    const data = await response.json();
+                    alert(data.message);
+                    
+                    if (data.status === 'ok') {
+                        await this.loadData();
+                    }
+                } catch (error) {
+                    alert('트레이더 중지 실패: ' + error.message);
+                }
+            }
+
+            updateRefreshTime() {
+                const now = new Date();
+                this.refreshTimeElement.textContent = `마지막 업데이트: ${now.toLocaleTimeString()}`;
+            }
+
+            showError(message) {
+                this.dashboardElement.innerHTML = `
+                    <div class="error">
+                        <strong>오류:</strong> ${message}
+                    </div>
+                `;
+            }
+        }
+
+        // 대시보드 초기화
+        const dashboard = new TradingDashboard();
+    </script>
+</body>
+</html>

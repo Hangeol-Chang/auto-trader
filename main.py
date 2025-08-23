@@ -12,21 +12,50 @@ INVEST_TYPE = "VPS"    # 모의투자
 
 # 각 프로세스 별 실행 여부
 RUN_FLASK = True
-RUN_TRADER = False
+RUN_TRADER = True  # 트레이더 활성화
 
 # 전역 종료 플래그
 shutdown_event = threading.Event()
 
 USE_TRADERS = [
-    trader.Live_Crypto_Trader,
+    # 기존 트레이더 주석처리
+    # trader.Live_Crypto_Trader,
+    
+    # 새로운 하이브리드 모델 기반 트레이더
+    lambda: trader.Live_Crypto_Trader(
+        markets=['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-ADA'],  # 거래할 코인 목록
+        interval='1m',          # 1분봉
+        num_steps=5,           # LSTM 시계열 스텝
+        min_confidence=0.7,    # 최소 신뢰도
+        trading_amount=10000   # 거래 금액 (KRW)
+    ),
 ]
 
 def setup_logging():
     """로깅 설정"""
+    # 루트 로거 설정
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(),  # 콘솔 출력
+        ]
     )
+    
+    # 주요 모듈들의 로그 레벨 설정
+    modules_to_log = [
+        'core.trader',
+        'module.upbit_api', 
+        'module.crypto.crypto_orderer',
+        'module.trading_executor',
+        'model.predict_hybrid_signals'
+    ]
+    
+    for module_name in modules_to_log:
+        logger = logging.getLogger(module_name)
+        logger.setLevel(logging.INFO)
+        
+    print("로깅 설정 완료 - 모든 모듈의 로그가 콘솔에 표시됩니다.")
 
 def signal_handler(signum, frame):
     """시그널 핸들러 - Ctrl+C 처리"""
@@ -50,15 +79,31 @@ def run_trader():
     
     try:
         print("Starting Trader app...")
-        for TraderClass in USE_TRADERS:
-            trader_instance = TraderClass()
+        
+        # 모니터링 API에 트레이더 등록을 위한 import
+        try:
+            from core.api.monitoring_api import register_trader_instance
+        except ImportError:
+            register_trader_instance = lambda x: None  # 실패시 더미 함수
+        
+        for trader_factory in USE_TRADERS:
+            # 팩토리 함수인지 클래스인지 확인
+            if callable(trader_factory) and hasattr(trader_factory, '__name__') and trader_factory.__name__ == '<lambda>':
+                # 람다 함수인 경우 호출
+                trader_instance = trader_factory()
+            else:
+                # 클래스인 경우 인스턴스 생성
+                trader_instance = trader_factory()
+            
+            # 모니터링 API에 트레이더 등록
+            register_trader_instance(trader_instance)
             
             # 트레이더에 shutdown_event 전달 (트레이더 클래스에서 지원한다면)
             if hasattr(trader_instance, 'set_shutdown_event'):
                 trader_instance.set_shutdown_event(shutdown_event)
             
             trader_thread = threading.Thread(target=trader_instance.run)
-            trader_thread.name = f"Trader-{TraderClass.__name__}"
+            trader_thread.name = f"Trader-{trader_instance.__class__.__name__}"
             trader_thread.daemon = True  # 데몬 스레드로 설정
             
             traders.append(trader_instance)

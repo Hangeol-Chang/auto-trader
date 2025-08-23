@@ -1,0 +1,32 @@
+{
+  "live_crypto_trader": {
+    "markets": [
+      "KRW-BTC",
+      "KRW-ETH", 
+      "KRW-XRP",
+      "KRW-ADA"
+    ],
+    "interval": "1m",
+    "num_steps": 5,
+    "min_confidence": 0.7,
+    "trading_amount": 10000,
+    "min_krw_order": 5000,
+    "order_cooldown": 1.0,
+    "signal_interval": 10,
+    "model_settings": {
+      "net": "dnn_lstm",
+      "num_epochs": 1000,
+      "lr": 0.0005,
+      "discount_factor": 0.9
+    }
+  },
+  "websocket": {
+    "url": "wss://api.upbit.com/websocket/v1",
+    "reconnect_delay": 5,
+    "ping_interval": 30
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  }
+}

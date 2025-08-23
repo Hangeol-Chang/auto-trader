@@ -87,6 +87,28 @@ def format_iso_to_datetime(iso_str: str) -> str:
     else:
         return date_part + "0000"
 
+def convert_kst_to_utc(kst_datetime: str) -> str:
+    """
+    한국 시간(KST)을 UTC 시간으로 변환
+    Args:
+        kst_datetime: YYYYMMDDHHMM 형식의 한국 시간
+    Returns:
+        YYYYMMDDHHMM 형식의 UTC 시간
+    """
+    if not kst_datetime:
+        return kst_datetime
+    
+    if len(kst_datetime) == 8:  # YYYYMMDD
+        kst_datetime += "0000"  # 00시 00분으로 보정
+    
+    # 한국 시간을 datetime 객체로 변환
+    kst_dt = datetime.strptime(kst_datetime, "%Y%m%d%H%M")
+    
+    # UTC로 변환 (9시간 빼기)
+    utc_dt = kst_dt - timedelta(hours=9)
+    
+    return utc_dt.strftime("%Y%m%d%H%M")
+
 ##############################################################################################
 # Upbit API 캔들 데이터 조회 함수들
 ##############################################################################################
@@ -296,8 +318,8 @@ def get_candle_data(
     Args:
         market (str): 마켓 코드 (예: KRW-BTC)
         interval (str): 캔들 간격 ('1m', '3m', '5m', '15m', '30m', '1h', '4h', '1d', '1w', '1M')
-        start_datetime (str): 시작 시간 (YYYYMMDDHHMM)
-        end_datetime (str): 종료 시간 (YYYYMMDDHHMM)
+        start_datetime (str): 시작 시간 (YYYYMMDDHHMM) - 한국 시간(KST)
+        end_datetime (str): 종료 시간 (YYYYMMDDHHMM) - 한국 시간(KST)
         use_cache (bool): 캐시 사용 여부
         force_api (bool): 강제로 API 호출
     
@@ -305,9 +327,15 @@ def get_candle_data(
         pd.DataFrame: 캔들 데이터
     """
     
+    # 한국 시간을 UTC 시간으로 변환
+    start_datetime_utc = convert_kst_to_utc(start_datetime) if start_datetime else None
+    end_datetime_utc = convert_kst_to_utc(end_datetime) if end_datetime else None
+    
+    print(f"시간 변환: KST({start_datetime}~{end_datetime}) -> UTC({start_datetime_utc}~{end_datetime_utc})")
+    
     # 1. 강제 API 호출이 아니고 캐시 사용 시, 먼저 DB에서 확인
     if not force_api and use_cache:
-        cached_data = load_candle_data_from_db(market, interval, start_datetime, end_datetime)
+        cached_data = load_candle_data_from_db(market, interval, start_datetime_utc, end_datetime_utc)
         if cached_data is not None and not cached_data.empty:
             print(f"DB에서 캔들 데이터 로드: {market} {interval}")
             return cached_data
@@ -319,8 +347,8 @@ def get_candle_data(
     current_to = None
     
     # end_datetime가 지정된 경우 ISO 형식으로 변환
-    if end_datetime:
-        current_to = format_datetime_to_iso(end_datetime)
+    if end_datetime_utc:
+        current_to = format_datetime_to_iso(end_datetime_utc)
     
     # 데이터가 충분할 때까지 반복 조회
     max_iterations = 10  # 무한 루프 방지
@@ -335,7 +363,7 @@ def get_candle_data(
         all_data.append(df)
         
         # start_datetime가 지정되었고, 충분한 데이터를 얻었으면 중단
-        if start_datetime and df['candle_date_time_utc'].min() <= start_datetime:
+        if start_datetime_utc and df['candle_date_time_utc'].min() <= start_datetime_utc:
             break
         
         # 다음 조회를 위한 to 값 설정 (가장 오래된 데이터의 시간)
@@ -353,11 +381,11 @@ def get_candle_data(
     result_df = pd.concat(all_data, ignore_index=True)
     result_df = result_df.drop_duplicates(subset=['candle_date_time_utc']).sort_values('candle_date_time_utc').reset_index(drop=True)
     
-    # 날짜 범위 필터링
-    if start_datetime:
-        result_df = result_df[result_df['candle_date_time_utc'] >= start_datetime]
-    if end_datetime:
-        result_df = result_df[result_df['candle_date_time_utc'] <= end_datetime]
+    # UTC 시간으로 날짜 범위 필터링
+    if start_datetime_utc:
+        result_df = result_df[result_df['candle_date_time_utc'] >= start_datetime_utc]
+    if end_datetime_utc:
+        result_df = result_df[result_df['candle_date_time_utc'] <= end_datetime_utc]
     
     # 캐시 및 DB에 저장
     if use_cache and not result_df.empty:

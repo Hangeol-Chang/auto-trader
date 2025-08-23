@@ -24,6 +24,7 @@ from flask import Flask, jsonify, send_from_directory
 from .api.discord_api import discord_bp
 from .api.tradingview_api import tradingview_bp
 from .api.trading_api import trading_bp
+from .api.monitoring_api import monitoring_bp
 
 # 모듈 import
 import sys
@@ -46,6 +47,7 @@ app = Flask(__name__, static_folder=static_path, static_url_path='/static')
 app.register_blueprint(discord_bp)
 app.register_blueprint(tradingview_bp)
 app.register_blueprint(trading_bp)
+app.register_blueprint(monitoring_bp)
 
 # 전역 인스턴스 (레거시 호환성을 위해 유지)
 upbit_api = UpbitAPI()
@@ -79,6 +81,18 @@ def api_info():
     }), 200
 
 
+@app.route("/", methods=["GET"])
+def home():
+    """메인 페이지"""
+    return send_from_directory(web2_path, 'index.html')
+
+
+@app.route("/dashboard", methods=["GET"])
+def trading_dashboard():
+    """트레이딩 대시보드 페이지"""
+    return send_from_directory(web2_path, 'trading_dashboard.html')
+
+
 @app.route("/health", methods=["GET"])
 def health():
     """전체 시스템 상태 확인"""
@@ -89,7 +103,8 @@ def health():
         "apis": {
             "discord": "active",
             "tradingview": "active", 
-            "trading": "active"
+            "trading": "active",
+            "monitoring": "active"
         }
     }), 200
 

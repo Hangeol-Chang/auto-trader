@@ -7,7 +7,7 @@ KIS API를 사용한 국내 주식 거래 모듈
 import logging
 from typing import Optional, Dict, Any
 from . import kis_fetcher
-from . import token_manager
+from .. import token_manager  # 올바른 경로로 수정
 
 log = logging.getLogger(__name__)
 

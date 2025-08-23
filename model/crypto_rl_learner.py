@@ -36,7 +36,7 @@ from module.crypto.crypto_data_manager import get_candle_data
 class CryptoReinforcementLearner:
     """암호화폐 강화학습 모델"""
     
-    def __init__(self, market='KRW-BTC', interval='1d',
+    def __init__(self, market='KRW-BTC', interval='1m',
                  min_trading_price=10000, max_trading_price=1000000,
                  net='dnn', num_steps=1, lr=0.0005,
                  discount_factor=0.9, num_epochs=1000,
@@ -80,6 +80,7 @@ class CryptoReinforcementLearner:
         self.lr = lr
         self.value_network = None
         self.policy_network = None
+        self.hybrid_network = None  # 하이브리드 네트워크 추가
         self.reuse_models = reuse_models
         
         # 가시화 모듈
@@ -254,6 +255,15 @@ class CryptoReinforcementLearner:
                 output_dim=self.agent.NUM_ACTIONS,
                 lr=self.lr, num_steps=self.num_steps,
                 shared_network=shared_network,
+                activation=activation, loss=loss)
+    
+    def init_hybrid_network(self, activation='softmax', loss='categorical_crossentropy'):
+        """하이브리드 네트워크 초기화 (DNN+LSTM 통합 모델)"""
+        if self.net == 'dnn_lstm':
+            self.hybrid_network = DNNLSTMNetwork(
+                input_dim=self.num_features,
+                output_dim=self.agent.NUM_ACTIONS,
+                lr=self.lr, num_steps=self.num_steps,
                 activation=activation, loss=loss)
     
     def reset(self):

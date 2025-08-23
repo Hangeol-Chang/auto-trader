@@ -250,7 +250,14 @@ class UpbitAPI:
                 log.info("주문 성공: %s", response.json())
                 return response.json()
             else:
-                log.error("주문 실패: %s", response.text)
+                error_info = {
+                    'status_code': response.status_code,
+                    'response_text': response.text,
+                    'params': params
+                }
+                log.error("주문 실패 - 상태코드: %s", response.status_code)
+                log.error("주문 실패 - 응답: %s", response.text)
+                log.error("주문 실패 - 파라미터: %s", params)
                 return None
         except Exception as e:
             log.error("주문 실행 중 오류: %s", e)
