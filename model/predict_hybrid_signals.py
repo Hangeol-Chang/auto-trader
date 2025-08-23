@@ -77,7 +77,7 @@ def predict_with_hybrid_model(market='KRW-BTC', timestamp=None, candles=20, num_
         # 하이브리드 학습기 초기화 (모델 로드용)
         learner = CryptoReinforcementLearner(
             market=market,
-            interval='1d',
+            interval='1m',
             net='dnn_lstm',  # 하이브리드 네트워크
             num_steps=num_steps,
             lr=0.0003,

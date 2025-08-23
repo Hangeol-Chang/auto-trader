@@ -15,7 +15,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from model.crypto_rl_learner import CryptoReinforcementLearner
 
 
-def train_crypto_model(market='KRW-BTC', interval='1d', epochs=1000, 
+def train_crypto_model(market='KRW-BTC', interval='1m', epochs=200, 
                       balance=10000000, net='dnn', lr=0.0005):
     """Crypto 강화학습 모델 학습"""
     
@@ -76,7 +76,7 @@ def train_crypto_model(market='KRW-BTC', interval='1d', epochs=1000,
 def main():
     parser = argparse.ArgumentParser(description='Crypto Reinforcement Learning Training')
     parser.add_argument('--market', default='KRW-BTC', help='Crypto market (e.g., KRW-BTC)')
-    parser.add_argument('--interval', default='1d', choices=['1m', '5m', '15m', '30m', '1h', '4h', '1d'], 
+    parser.add_argument('--interval', default='1m', choices=['1m', '5m', '15m', '30m', '1h', '4h', '1d'], 
                        help='Candle interval')
     parser.add_argument('--epochs', type=int, default=1000, help='Number of training epochs')
     parser.add_argument('--balance', type=int, default=10000000, help='Initial balance (KRW)')

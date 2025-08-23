@@ -21,7 +21,7 @@ def quick_training_test():
         # 매우 짧은 학습 설정
         learner = CryptoReinforcementLearner(
             market='KRW-BTC',
-            interval='1d',
+            interval='1m',
             balance=1000000,
             num_epochs=3,        # 3 에포크만
             min_trading_price=50000,
@@ -77,7 +77,7 @@ def medium_training_test():
     try:
         learner = CryptoReinforcementLearner(
             market='KRW-BTC',
-            interval='1d',
+            interval='1m',
             balance=5000000,     # 500만원
             num_epochs=20,       # 20 에포크
             min_trading_price=100000,

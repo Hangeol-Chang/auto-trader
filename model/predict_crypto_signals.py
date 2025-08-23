@@ -80,7 +80,7 @@ def predict_crypto_signals(market: str = 'KRW-BTC', model_timestamp: str = None,
         
         # 예측 수행
         print(f"\n최근 {candles}개 캔들에 대한 거래 신호 예측 중...")
-        predictions = loader.predict_sequence(market, '1d', candles)
+        predictions = loader.predict_sequence(market, '1m', candles)
         
         if predictions.empty:
             print("예측 결과가 없습니다.")

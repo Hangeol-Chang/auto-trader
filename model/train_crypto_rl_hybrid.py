@@ -16,7 +16,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from model.crypto_rl_learner import CryptoReinforcementLearner
 
 
-def train_hybrid_model(market='KRW-BTC', epochs=100, balance=10000000, 
+def train_hybrid_model(market='KRW-BTC', epochs=200, balance=10000000, 
                       num_steps=10, lr=0.0003, output_path='model/crypto_rl_models'):
     """
     DNN+LSTM 하이브리드 모델 학습
@@ -42,7 +42,7 @@ def train_hybrid_model(market='KRW-BTC', epochs=100, balance=10000000,
     # 하이브리드 학습기 초기화
     learner = CryptoReinforcementLearner(
         market=market,
-        interval='1d',
+        interval='1m',
         min_trading_price=10000,
         max_trading_price=1000000,
         net='dnn_lstm',  # 하이브리드 네트워크 사용

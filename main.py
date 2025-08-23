@@ -23,7 +23,8 @@ USE_TRADERS = [
     
     # 새로운 하이브리드 모델 기반 트레이더
     lambda: trader.Live_Crypto_Trader(
-        markets=['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-ADA'],  # 거래할 코인 목록
+        # markets=['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-ADA'],  # 거래할 코인 목록
+        markets=['KRW-BTC', 'KRW-ETH'],  # 거래할 코인 목록
         interval='1m',          # 1분봉
         num_steps=5,           # LSTM 시계열 스텝
         min_confidence=0.7,    # 최소 신뢰도

@@ -24,7 +24,7 @@ def test_crypto_rl_basic():
     
     # 테스트 설정
     market = 'KRW-BTC'
-    interval = '1d'
+    interval = '1m'
     balance = 1000000  # 100만원
     
     try:
@@ -87,7 +87,7 @@ def test_multiple_cryptos():
         try:
             learner = CryptoReinforcementLearner(
                 market=market,
-                interval='1d',
+                interval='1m',
                 balance=1000000,
                 num_epochs=5,
                 min_trading_price=10000,
@@ -134,7 +134,7 @@ def test_different_networks():
         try:
             learner = CryptoReinforcementLearner(
                 market=market,
-                interval='1d',
+                interval='1m',
                 balance=1000000,
                 num_epochs=5,
                 net=net,
@@ -176,7 +176,7 @@ def test_prediction_mode():
     try:
         learner = CryptoReinforcementLearner(
             market=market,
-            interval='1d',
+            interval='1m',
             balance=1000000,
             num_epochs=1
         )

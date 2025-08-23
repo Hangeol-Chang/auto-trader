@@ -21,7 +21,7 @@ def debug_data_loading():
     try:
         learner = CryptoReinforcementLearner(
             market='KRW-BTC',
-            interval='1d',
+            interval='1m',
             balance=1000000,
             num_epochs=1,
             min_trading_price=50000,

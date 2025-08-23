@@ -82,7 +82,7 @@ loader = CryptoRLModelLoader(
 )
 
 # 최근 20개 캔들 예측
-predictions = loader.predict_sequence('KRW-BTC', '1d', 20)
+predictions = loader.predict_sequence('KRW-BTC', '1m', 20)
 
 # 최신 신호 확인
 latest_signal = predictions.iloc[-1]
@@ -158,7 +158,7 @@ results = []
 
 for model in models:
     loader = CryptoRLModelLoader(model['model_path'], model['summary_path'])
-    predictions = loader.predict_sequence(model['market'], '1d', 10)
+    predictions = loader.predict_sequence(model['market'], '1m', 10)
     
     latest = predictions.iloc[-1]
     results.append({
@@ -191,7 +191,7 @@ def monitor_crypto_signals(market='KRW-BTC', interval_seconds=3600):
     
     while True:
         try:
-            predictions = loader.predict_sequence(market, '1d', 5)
+            predictions = loader.predict_sequence(market, '1m', 5)
             latest = predictions.iloc[-1]
             
             print(f"[{datetime.now()}] {market}: {latest['action_name']} "

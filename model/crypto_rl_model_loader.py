@@ -115,7 +115,7 @@ class CryptoRLModelLoader:
         
         return action, float(confidence), False
     
-    def predict_sequence(self, market: str, interval: str = '1d', 
+    def predict_sequence(self, market: str, interval: str = '1m', 
                         last_n_candles: int = 100) -> pd.DataFrame:
         """
         최근 N개 캔들에 대한 연속 예측 수행

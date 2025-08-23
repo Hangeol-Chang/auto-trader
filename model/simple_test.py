@@ -22,7 +22,7 @@ def simple_test():
         # 가장 기본적인 설정으로 학습자 생성
         learner = CryptoReinforcementLearner(
             market='KRW-BTC',
-            interval='1d',
+            interval='1m',
             balance=1000000,
             num_epochs=3,  # 매우 짧은 테스트
             min_trading_price=50000,
@@ -79,7 +79,7 @@ def mini_training_test():
     try:
         learner = CryptoReinforcementLearner(
             market='KRW-BTC',
-            interval='1d',
+            interval='1m',
             balance=1000000,
             num_epochs=2,
             min_trading_price=50000,
