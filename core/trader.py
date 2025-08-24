@@ -9,6 +9,7 @@
 
 import logging
 import time
+import traceback
 import pandas as pd
 from module.stock import stock_data_manager, stock_data_manager_ws
 from module.stock import stock_orderer
@@ -22,6 +23,9 @@ from strategy import    \
 
 from strategy.sub import \
     stop_loss_strategy
+
+# Discord API import 추가
+from core.api.discord_api import send_to_discord_webhook
 
 STATE_DATA_DIR = "data/state"
 
@@ -478,6 +482,68 @@ class Live_Crypto_Trader(I_Trader):
         else:
             log.info(f"[{market}] 주문 실패로 인한 마지막 액션 유지: {self._last_actions.get(market, 'None')}")
     
+    def _send_discord_order_notification(self, order_data: dict, order_type: str = "ORDER"):
+        """
+        Discord로 주문 알림 전송
+        
+        Args:
+            order_data: 주문 데이터
+            order_type: "ORDER" (주문 신호) 또는 "RESULT" (주문 결과)
+        """
+        try:
+            market = order_data.get('market', 'Unknown')
+            action = order_data.get('action', 'Unknown')
+            confidence = order_data.get('confidence', 0)
+            current_price = order_data.get('current_price', 0)
+            
+            if order_type == "ORDER":
+                # 주문 신호 메시지
+                emoji = "🔴" if action == "SELL" else "🟢"
+                title = f"{emoji} **암호화폐 매매 신호 발생**"
+                
+                message = f"""{title}
+📊 **코인**: {market}
+🎯 **신호**: {action}
+💯 **신뢰도**: {confidence:.2f}
+💰 **현재가**: {current_price:,.0f}원
+⏰ **시간**: {order_data.get('timestamp', 'Unknown')}
+📝 **사유**: {order_data.get('reason', 'No reason provided')}"""
+
+            else:  # RESULT
+                # 주문 결과 메시지
+                success = order_data.get('success', False)
+                uuid = order_data.get('uuid', 'Unknown')
+                error_msg = order_data.get('error', '')
+                
+                if success:
+                    emoji = "✅"
+                    status_text = "주문 성공"
+                    color_emoji = "🟢" if action == "BUY" else "🔴"
+                else:
+                    emoji = "❌"
+                    status_text = "주문 실패"
+                    color_emoji = "⚠️"
+                
+                message = f"""{emoji} **{status_text}**
+{color_emoji} **코인**: {market}
+🎯 **액션**: {action}
+💰 **현재가**: {current_price:,.0f}원
+🆔 **주문ID**: {uuid}
+⏰ **시간**: {order_data.get('timestamp', 'Unknown')}"""
+                
+                if not success and error_msg:
+                    message += f"\n❗ **오류**: {error_msg}"
+            
+            # Discord로 메시지 전송
+            success = send_to_discord_webhook(message)
+            if success:
+                log.info(f"[{market}] Discord 알림 전송 성공: {order_type}")
+            else:
+                log.warning(f"[{market}] Discord 알림 전송 실패: {order_type}")
+                
+        except Exception as e:
+            log.error(f"Discord 알림 전송 중 오류: {e}")
+    
     def _calculate_technical_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         """기술적 지표 계산"""
         try:
@@ -572,12 +638,18 @@ class Live_Crypto_Trader(I_Trader):
             
             # 모델이 있을 경우 모델 예측 사용
             if model is not None:
+                log.debug(f"[{market}] 모델 예측 시작")
+                
                 model_input = self._prepare_model_input(market)
                 if model_input is None:
+                    log.warning(f"[{market}] 모델 입력 데이터 준비 실패 - 기술적 분석으로 대체")
                     return self._basic_technical_analysis(market)
+                
+                log.debug(f"[{market}] 모델 입력 크기: {model_input.shape}")
                 
                 # 모델 예측
                 prediction = model.predict(model_input)
+                log.debug(f"[{market}] 모델 예측 완료: {prediction}")
                 
                 # 예측 결과 해석
                 if len(prediction.shape) > 1:
@@ -589,6 +661,8 @@ class Live_Crypto_Trader(I_Trader):
                     buy_prob = prediction[1] 
                     sell_prob = prediction[2]
                     
+                    log.info(f"[{market}] 모델 예측 확률 - HOLD: {hold_prob:.3f}, BUY: {buy_prob:.3f}, SELL: {sell_prob:.3f}")
+                    
                     max_prob = max(hold_prob, buy_prob, sell_prob)
                     
                     if buy_prob == max_prob:
@@ -599,9 +673,12 @@ class Live_Crypto_Trader(I_Trader):
                         action = 'HOLD'
                     
                     confidence = float(max_prob)
+                    log.info(f"[{market}] 모델 예측 결과: {action} (신뢰도: {confidence:.3f})")
                 else:
                     # 단일 값인 경우
                     value = float(prediction[0] if len(prediction) > 0 else prediction)
+                    log.info(f"[{market}] 모델 예측 단일값: {value:.3f}")
+                    
                     if value > 0.6:
                         action = 'BUY'
                         confidence = value
@@ -611,6 +688,8 @@ class Live_Crypto_Trader(I_Trader):
                     else:
                         action = 'HOLD'
                         confidence = 0.5
+                    
+                    log.info(f"[{market}] 모델 예측 결과: {action} (신뢰도: {confidence:.3f})")
                 
                 return {
                     'action': action,
@@ -619,59 +698,79 @@ class Live_Crypto_Trader(I_Trader):
                 }
             else:
                 # 모델이 없을 경우 기본 기술적 분석 사용
+                log.warning(f"[{market}] 모델이 없음 - 기술적 분석으로 대체")
                 return self._basic_technical_analysis(market)
                 
         except Exception as e:
             log.error(f"[{market}] 모델 예측 중 오류: {e}")
+            log.error(f"[{market}] 상세 오류: {traceback.format_exc()}")
             # 오류 발생시 기본 기술적 분석으로 대체
+            log.warning(f"[{market}] 기술적 분석으로 대체하여 예측 계속 진행")
             return self._basic_technical_analysis(market)
     
     def _basic_technical_analysis(self, market: str) -> Dict[str, Any]:
         """기본 기술적 분석 전략"""
         try:
+            log.debug(f"[{market}] 기술적 분석 시작")
+            
             df = self.market_data.get(market)
             if df is None or len(df) < 20:
+                log.warning(f"[{market}] 기술적 분석용 데이터 부족 (데이터 개수: {len(df) if df is not None else 0})")
                 return {'action': 'HOLD', 'confidence': 0.0, 'reason': 'Insufficient data for analysis'}
             
             # 최근 데이터
             recent = df.tail(1).iloc[0]
+            log.debug(f"[{market}] 현재 가격: {recent.get('trade_price', 0):,}원")
             
             # 기본 매매 신호
             signals = []
             
             # 1. RSI 신호
             rsi = recent.get('rsi', 50)
+            log.debug(f"[{market}] RSI: {rsi:.2f}")
             if rsi < 30:
                 signals.append(('BUY', 0.7, 'RSI oversold'))
+                log.info(f"[{market}] RSI 과매도 신호 (RSI: {rsi:.2f})")
             elif rsi > 70:
                 signals.append(('SELL', 0.7, 'RSI overbought'))
+                log.info(f"[{market}] RSI 과매수 신호 (RSI: {rsi:.2f})")
             
             # 2. 이동평균 신호
             price = recent.get('trade_price', 0)
             ma5 = recent.get('ma5', 0)
             ma20 = recent.get('ma20', 0)
+            log.debug(f"[{market}] 가격: {price:,}, MA5: {ma5:,}, MA20: {ma20:,}")
             
             if price > ma5 > ma20:
                 signals.append(('BUY', 0.6, 'Price above MA'))
+                log.info(f"[{market}] 이동평균 상향돌파 신호")
             elif price < ma5 < ma20:
                 signals.append(('SELL', 0.6, 'Price below MA'))
+                log.info(f"[{market}] 이동평균 하향돌파 신호")
             
             # 3. MACD 신호
             macd = recent.get('macd', 0)
             macd_signal = recent.get('macd_signal', 0)
+            log.debug(f"[{market}] MACD: {macd:.4f}, MACD Signal: {macd_signal:.4f}")
             
             if macd > macd_signal and macd > 0:
                 signals.append(('BUY', 0.5, 'MACD bullish'))
+                log.info(f"[{market}] MACD 상승 신호")
             elif macd < macd_signal and macd < 0:
                 signals.append(('SELL', 0.5, 'MACD bearish'))
+                log.info(f"[{market}] MACD 하락 신호")
             
             # 신호 종합
             if not signals:
+                log.info(f"[{market}] 기술적 분석 - 명확한 신호 없음")
                 return {'action': 'HOLD', 'confidence': 0.3, 'reason': 'No clear signals'}
             
             # 가장 강한 신호 선택
             best_signal = max(signals, key=lambda x: x[1])
             action, confidence, reason = best_signal
+            
+            log.info(f"[{market}] 기술적 분석 결과: {action} (신뢰도: {confidence:.3f}, 이유: {reason})")
+            log.info(f"[{market}] 전체 신호들: {[f'{s[0]}({s[1]:.1f})' for s in signals]}")
             
             return {
                 'action': action,
@@ -681,6 +780,7 @@ class Live_Crypto_Trader(I_Trader):
             
         except Exception as e:
             log.error(f"[{market}] 기술적 분석 중 오류: {e}")
+            log.error(f"[{market}] 상세 오류: {traceback.format_exc()}")
             return {'action': 'HOLD', 'confidence': 0.0, 'reason': f'Analysis error: {e}'}
 
     def run(self):
@@ -805,56 +905,94 @@ class Live_Crypto_Trader(I_Trader):
             
             log.info(f"[{market}] 예측: {action} (신뢰도: {confidence:.3f}, 가격: {current_price:,}원)")
             
-            # 거래 실행
-            if action != 'HOLD' and confidence >= self.min_confidence:
-                # 중복 신호 검사
-                if self._should_skip_signal(market, action):
-                    return  # 중복 신호인 경우 주문 실행하지 않음
+            # 거래 실행 조건 검사
+            if action == 'HOLD':
+                log.info(f"[{market}] HOLD 신호 - 거래 실행하지 않음")
+                return
+            
+            if confidence < self.min_confidence:
+                log.warning(f"[{market}] 신뢰도 부족으로 거래 스킵 - 현재: {confidence:.3f}, 최소: {self.min_confidence:.3f}")
+                return
+            
+            log.info(f"[{market}] 거래 실행 조건 충족 - {action} 신호 (신뢰도: {confidence:.3f})")
+            
+            # 중복 신호 검사
+            if self._should_skip_signal(market, action):
+                log.warning(f"[{market}] 중복 신호로 거래 실행 스킵")
+                return  # 중복 신호인 경우 주문 실행하지 않음
+            
+            log.info(f"[{market}] 주문 실행 시작 - {action}")
+            
+            order_data = {
+                'action': action,
+                'market': market,
+                'confidence': confidence,
+                'current_price': current_price,
+                'amount_krw': self.trading_amount if action == 'BUY' else None,
+                'timestamp': datetime.now().isoformat(),
+                'reason': prediction.get('reason', '')
+            }
+            
+            # 주문 신호 Discord 알림 전송
+            self._send_discord_order_notification(order_data, "ORDER")
+            
+            result = self.orderer.place_order(order_data)
+            
+            # 주문 결과용 데이터 준비
+            result_data = order_data.copy()
+            
+            if result:
+                log.info(f"[{market}] 주문 실행 성공: {action} - {result.get('uuid')}")
+                # 주문 성공시 마지막 액션 업데이트
+                self._update_last_action(market, action, success=True)
                 
-                order_data = {
-                    'action': action,
-                    'market': market,
-                    'confidence': confidence,
-                    'current_price': current_price,
-                    'amount_krw': self.trading_amount if action == 'BUY' else None,
-                    'timestamp': datetime.now().isoformat(),
-                    'reason': prediction.get('reason', '')
-                }
+                # 주문 성공 결과 Discord 알림
+                result_data.update({
+                    'success': True,
+                    'uuid': result.get('uuid', 'Unknown'),
+                    'error': ''
+                })
+                self._send_discord_order_notification(result_data, "RESULT")
                 
-                result = self.orderer.place_order(order_data)
-                if result:
-                    log.info(f"[{market}] 주문 실행 성공: {action} - {result.get('uuid')}")
-                    # 주문 성공시 마지막 액션 업데이트
-                    self._update_last_action(market, action, success=True)
-                else:
-                    log.error(f"[{market}] 주문 실행 실패")
-                    log.error(f"[{market}] 주문 데이터: {order_data}")
-                    log.error(f"[{market}] 반환 결과: {result}")
-                    
-                    # 주문 실패시 마지막 액션 유지 (재시도 가능하도록)
-                    self._update_last_action(market, action, success=False)
-                    
-                    # orderer에서 더 상세한 오류 정보 가져오기
-                    if hasattr(self.orderer, 'last_error'):
-                        log.error(f"[{market}] 상세 오류: {self.orderer.last_error}")
-                    
-                    # 추가 디버깅 정보
-                    log.error(f"[{market}] 현재 잔고 확인 필요")
-                    try:
-                        # 잔고 확인 로그 추가
-                        if hasattr(self.orderer, 'upbit_api'):
-                            balances = self.orderer.upbit_api.get_balances()
-                            if balances:
-                                krw_balance = 0
-                                for balance in balances:
-                                    if balance['currency'] == 'KRW':
-                                        krw_balance = float(balance['balance'])
-                                        break
-                                log.error(f"[{market}] 현재 KRW 잔고: {krw_balance:,.0f}원")
-                            else:
-                                log.error(f"[{market}] 잔고 조회 실패")
-                    except Exception as balance_error:
-                        log.error(f"[{market}] 잔고 확인 중 오류: {balance_error}")
+            else:
+                log.error(f"[{market}] 주문 실행 실패")
+                log.error(f"[{market}] 주문 데이터: {order_data}")
+                log.error(f"[{market}] 반환 결과: {result}")
+                
+                # 주문 실패시 마지막 액션 유지 (재시도 가능하도록)
+                self._update_last_action(market, action, success=False)
+                
+                # 오류 메시지 수집
+                error_msg = "주문 실행 실패"
+                if hasattr(self.orderer, 'last_error'):
+                    error_msg = str(self.orderer.last_error)
+                    log.error(f"[{market}] 상세 오류: {self.orderer.last_error}")
+                
+                # 주문 실패 결과 Discord 알림
+                result_data.update({
+                    'success': False,
+                    'uuid': 'Failed',
+                    'error': error_msg
+                })
+                self._send_discord_order_notification(result_data, "RESULT")
+                
+                # 추가 디버깅 정보
+                log.error(f"[{market}] 현재 잔고 확인 필요")
+                try:
+                    # 잔고 확인 로그 추가
+                    if hasattr(self.orderer, 'upbit_api'):
+                        balances = self.orderer.upbit_api.get_balances()
+                        if balances:
+                            krw_balance = 0
+                            for balance in balances:
+                                if balance['currency'] == 'KRW':
+                                    krw_balance = float(balance['balance'])
+                                    break
+                            log.error(f"[{market}] 현재 KRW 잔고: {krw_balance:,.0f}원")
+                        else:
+                            log.error(f"[{market}] 잔고 조회 실패")
+                except Exception as balance_error:
+                    log.error(f"[{market}] 잔고 확인 중 오류: {balance_error}")
             
         except Exception as e:
             log.error(f"[{market}] 시세 데이터 처리 중 오류: {e}")
@@ -910,12 +1048,15 @@ class Live_Crypto_Trader(I_Trader):
             # 마지막 신호 생성 시간 체크 (10초 간격)
             current_time = time.time()
             last_signal_time = self._last_signal_times.get(market, 0)
+            time_diff = current_time - last_signal_time
             
-            if current_time - last_signal_time < 10:
+            if time_diff < 10:
+                log.debug(f"[{market}] 신호 생성 스킵 - 마지막 신호로부터 {time_diff:.1f}초 경과 (최소 10초 필요)")
                 return False
             
             # 마지막 신호 생성 시간 업데이트
             self._last_signal_times[market] = current_time
+            log.debug(f"[{market}] 신호 생성 조건 충족 - {time_diff:.1f}초 경과")
             
             return True
             

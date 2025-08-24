@@ -34,12 +34,23 @@ USE_TRADERS = [
 
 def setup_logging():
     """로깅 설정"""
+    import os
+    from datetime import datetime
+    
+    # logs 디렉토리 생성
+    os.makedirs('logs', exist_ok=True)
+    
+    # 오늘 날짜로 로그 파일명 생성
+    today = datetime.now().strftime('%Y%m%d')
+    log_filename = f'logs/trader_{today}.log'
+    
     # 루트 로거 설정
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.StreamHandler(),  # 콘솔 출력
+            logging.FileHandler(log_filename, encoding='utf-8')  # 파일 출력
         ]
     )
     
@@ -49,14 +60,15 @@ def setup_logging():
         'module.upbit_api', 
         'module.crypto.crypto_orderer',
         'module.trading_executor',
-        'model.predict_hybrid_signals'
+        'model.predict_hybrid_signals',
+        'module.discord_api'  # Discord 알림 로깅 추가
     ]
     
     for module_name in modules_to_log:
         logger = logging.getLogger(module_name)
         logger.setLevel(logging.INFO)
         
-    print("로깅 설정 완료 - 모든 모듈의 로그가 콘솔에 표시됩니다.")
+    print(f"로깅 설정 완료 - 콘솔과 파일({log_filename})에 로그가 저장됩니다.")
 
 def signal_handler(signum, frame):
     """시그널 핸들러 - Ctrl+C 처리"""
