@@ -1,9 +1,8 @@
-flask
-requests
-PyJWT
-cryptography
-numpy
-pandas
-tensorflow
-tqdm
-matplotlib
+flask==3.1.2
+requests==2.32.5
+PyJWT==2.10.1
+cryptography==45.0.6
+pandas>=1.5.0
+numpy>=1.21.0
+ta-lib>=0.4.0
+websocket-client>=1.0.0
