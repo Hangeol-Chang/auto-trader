@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AT</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='./css/style.css') }}">
+    <title>Auto Trader Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('auto_trader.static', filename='css/style.css') }}">
     <!-- Plotly.js 라이브러리 추가 -->
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <!-- Input Field 컴포넌트 추가 -->
-    <script src="{{ url_for('static', filename='./components/inputField.js') }}"></script>
+    <script src="{{ url_for('auto_trader.static', filename='components/inputField.js') }}"></script>
 </head>
 <body>
     <div id="header">
@@ -121,8 +121,8 @@
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='./js/backtest.js') }}"></script>
-    <script src="{{ url_for('static', filename='./js/stock.js') }}"></script>
+    <script src="{{ url_for('auto_trader.static', filename='js/backtest.js') }}"></script>
+    <script src="{{ url_for('auto_trader.static', filename='js/stock.js') }}"></script>
     
     <script>
         // DOM이 로드된 후 Web Components 초기화

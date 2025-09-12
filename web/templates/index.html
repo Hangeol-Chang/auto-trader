@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Trading Server Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('auto_trader.static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Auto Trading Server</h1>
+            <p>모듈화된 자동매매 서버 대시보드</p>
+        </div>
+        
+        <div class="status-card">
+            <h2>서버 상태</h2>
+            <p>
+                <span class="status-indicator status-online"></span>
+                <span id="server-status">온라인</span> - 
+                버전 <span id="server-version">2.1.0</span>
+            </p>
+            <p><small>💰 암호화폐 (Upbit) + 🏢 주식 (KIS) 통합 거래 지원</small></p>
+        </div>
+        
+        <div class="api-grid">
+            <div class="api-card">
+                <h3>🤖 Discord Bot API</h3>
+                <p>디스코드 봇과의 통합을 위한 API 엔드포인트</p>
+                <ul class="endpoints">
+                    <li>GET /api/discord/health</li>
+                    <li>GET /api/discord/commands</li>
+                    <li>POST /api/discord/webhook</li>
+                    <li>POST /api/discord/notification</li>
+                </ul>
+                <button class="btn" onclick="testDiscordAPI()">API 테스트</button>
+            </div>
+            
+            <div class="api-card">
+                <h3>📈 TradingView API</h3>
+                <p>TradingView 웹훅을 처리하는 신규 API 엔드포인트</p>
+                <ul class="endpoints">
+                    <li>GET /api/tradingview/health</li>
+                    <li>POST /api/tradingview/signal (신규)</li>
+                    <li>POST /api/tradingview/signal-test</li>
+                    <li>GET /api/tradingview/strategies</li>
+                    <li>GET /api/tradingview/webhook-config</li>
+                    <li>GET /api/tradingview/signals/history</li>
+                </ul>
+                <button class="btn" onclick="testTradingViewAPI()">API 테스트</button>
+            </div>
+            
+            <div class="api-card">
+                <h3>💰 Trading API</h3>
+                <p>암호화폐 및 주식 거래를 제공하는 API 엔드포인트</p>
+                <ul class="endpoints">
+                    <li>GET /api/trading/health</li>
+                    <li>GET /api/trading/balance</li>
+                    <li>GET /api/trading/markets</li>
+                    <li>POST /api/trading/orders</li>
+                    <li>GET /api/trading/positions</li>
+                    <li>GET /api/trading/performance</li>
+                </ul>
+                <button class="btn" onclick="testTradingAPI()">API 테스트</button>
+            </div>
+            
+            <div class="api-card">
+                <h3>📈 Stock Trading API</h3>
+                <p>KIS API를 통한 한국 주식 거래 엔드포인트</p>
+                <ul class="endpoints">
+                    <li>POST /api/trading/stock-signal</li>
+                    <li>GET /api/trading/stock-balance</li>
+                    <li>GET /api/trading/stock-price/{code}</li>
+                </ul>
+                <button class="btn" onclick="testStockAPI()">API 테스트</button>
+            </div>
+        </div>
+        
+        <div class="features">
+            <h2>주요 기능</h2>
+            <div class="feature-grid">
+                <div class="feature-item">
+                    <div class="feature-icon">🔄</div>
+                    <h3>자동 매매</h3>
+                    <p>TradingView 신호를 받아 암호화폐 및 주식 자동 거래</p>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">💬</div>
+                    <h3>Discord 연동</h3>
+                    <p>Discord를 통한 실시간 알림 및 명령어 제어</p>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">📊</div>
+                    <h3>실시간 모니터링</h3>
+                    <p>포트폴리오 상태 및 거래 내역 실시간 확인</p>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">🏢</div>
+                    <h3>다중 자산 거래</h3>
+                    <p>Upbit 암호화폐 + KIS 한국 주식 통합 거래</p>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">💲</div>
+                    <h3>지정가 주문</h3>
+                    <p>TradingView 가격 기반 지정가 매수/매도 지원</p>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">🛡️</div>
+                    <h3>안전한 거래</h3>
+                    <p>리스크 관리 및 안전장치 내장</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="status-card">
+            <h2>빠른 액세스</h2>
+            <a href="/health" class="btn">시스템 상태</a>
+            <a href="/api/trading/balance" class="btn">암호화폐 잔고</a>
+            <a href="/api/trading/stock-balance" class="btn">주식 잔고</a>
+            <a href="/api/trading/markets" class="btn">지원 마켓</a>
+            <a href="/api/tradingview/strategies" class="btn">활성 전략</a>
+            <a href="/api/tradingview/signals/history" class="btn">신호 히스토리</a>
+            <button class="btn" onclick="quickBalanceCheck()">💰 통합 잔고</button>
+        </div>
+        
+        <div class="status-card">
+            <h2>⌨️ 키보드 단축키</h2>
+            <p><strong>Ctrl + Shift + T:</strong> 전체 API 테스트</p>
+            <p><strong>Ctrl + Shift + B:</strong> 빠른 잔고 확인</p>
+        </div>
+        
+        <div class="footer">
+            <p>&copy; 2025 Auto Trading Server v2.1.0 - 암호화폐 & 주식 통합 거래 플랫폼</p>
+            <p><small>Upbit API + KIS API + TradingView Webhooks + Discord Notifications</small></p>
+        </div>
+    </div>
+    
+    <script src="static/js/main.js"></script>
+</body>
+</html>
