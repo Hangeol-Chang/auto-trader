@@ -1,8 +1,38 @@
+# Auto-trader Module Dependencies
+
+# Flask Web Framework (shared with main server)
 flask==3.1.2
 requests==2.32.5
 PyJWT==2.10.1
 cryptography==45.0.6
-pandas>=1.5.0
-numpy>=1.21.0
-ta-lib>=0.4.0
-websocket-client>=1.0.0
+
+# Data Analysis and Financial Libraries  
+pandas>=2.3.0
+numpy>=2.3.0
+
+# Technical Analysis and Stock Data
+pykrx>=1.0.51         # Korean stock market data
+yfinance>=0.2.65      # Yahoo Finance data
+ta-lib>=0.4.0         # Technical Analysis Library
+
+# Machine Learning and Deep Learning
+tensorflow>=2.20.0    # Deep learning framework
+keras>=3.11.0         # High-level neural networks API
+
+# Data Visualization and Charting
+matplotlib>=3.10.0    # Basic plotting
+mplfinance    # Financial plotting
+
+# WebSocket for Real-time Data
+websocket-client>=1.8.0
+websockets>=15.0.0
+
+# Utilities
+psutil>=7.0.0         # System and process utilities
+pycryptodome>=3.23.0  # Cryptography library
+tqdm>=4.67.0          # Progress bars
+
+# Commented out packages (uncomment if needed)
+# plotly>=5.0.0       # Interactive plotting
+# dash>=2.0.0         # Interactive web apps
+# TA-Lib>=0.4.0       # Technical Analysis (requires external library)
