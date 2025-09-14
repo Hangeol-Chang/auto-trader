@@ -22,7 +22,7 @@ DB_FILES = [
     # 추가 데이터베이스 파일들을 여기에 추가
 ]
 
-# 데이터 폴더 경로
+# 데이터 폴더 경로 (모듈 루트의 data 폴더)
 DATA_DIR = os.path.dirname(__file__)
 
 def get_table_schema(cursor, table_name):

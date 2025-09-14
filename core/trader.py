@@ -8,6 +8,7 @@
 """
 
 import logging
+import os
 import time
 import traceback
 import pandas as pd
@@ -27,7 +28,9 @@ from strategy.sub import \
 # Discord API import 추가
 from core.api.discord_api import send_to_discord_webhook
 
-STATE_DATA_DIR = "data/state"
+# 모듈 기본 디렉토리 기준 절대 경로 설정
+MODULE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+STATE_DATA_DIR = os.path.join(MODULE_ROOT, "data", "state")
 
 logger = logging.getLogger(__name__)
 log = logging.getLogger(__name__)  # 추가
@@ -863,12 +866,12 @@ class Live_Crypto_Trader(I_Trader):
                 timestamp = data.get('timestamp')
                 change_rate = data.get('signed_change_rate', 0) * 100  # 변화율을 퍼센트로
                 
-                print(f"🔄 [{market}] 실시간 데이터 수신:")
-                print(f"   💰 현재가: {current_price:,}원")
-                print(f"   📈 변화율: {change_rate:+.2f}%")
-                print(f"   ⏰ 시간: {timestamp}")
-                print(f"   📊 거래량: {data.get('acc_trade_volume_24h', 'N/A')}")
-                print("-" * 50)
+                # print(f"🔄 [{market}] 실시간 데이터 수신:")
+                # print(f"   💰 현재가: {current_price:,}원")
+                # print(f"   📈 변화율: {change_rate:+.2f}%")
+                # print(f"   ⏰ 시간: {timestamp}")
+                # print(f"   📊 거래량: {data.get('acc_trade_volume_24h', 'N/A')}")
+                # print("-" * 50)
                 
                 self._process_ticker_data(market, data)
                 

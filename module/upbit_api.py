@@ -5,6 +5,7 @@
 
 import json
 import logging
+import os
 import uuid
 import requests
 import hashlib
@@ -15,19 +16,33 @@ from typing import Optional, Dict, Any, List
 log = logging.getLogger(__name__)
 
 class UpbitAPI:
-    """업비트 API 클라이언트"""
+    """업비트 API 클라이언트 (싱글톤)"""
+    
+    _instance = None
+    _initialized = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(UpbitAPI, cls).__new__(cls)
+        return cls._instance
     
     def __init__(self):
-        self.access_key = ''
-        self.secret_key = ''
-        self.market_info_cache = {}
-        self.load_api_keys()
-        self.load_market_info()
+        if not self._initialized:
+            self.access_key = ''
+            self.secret_key = ''
+            self.market_info_cache = {}
+            self.load_api_keys()
+            self.load_market_info()
+            UpbitAPI._initialized = True
     
     def load_api_keys(self) -> bool:
         """업비트 API 키를 파일에서 읽어옴"""
         try:
-            with open('./private/keys.json', 'r') as f:
+            # 현재 파일의 디렉토리를 기준으로 한 절대 경로
+            current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            keys_path = os.path.join(current_dir, 'private', 'keys.json')
+            
+            with open(keys_path, 'r') as f:
                 keys = json.load(f)
                 self.access_key = keys['COIN'][0]['APP_KEY']
                 self.secret_key = keys['COIN'][0]['APP_SECRET']
@@ -38,34 +53,46 @@ class UpbitAPI:
             return False
     
     def load_market_info(self) -> bool:
-        """업비트 마켓 정보를 로드하고 캐시에 저장"""
-        try:
-            url = "https://api.upbit.com/v1/market/all?is_details=true"
-            headers = {"accept": "application/json"}
+        """업비트 마켓 정보를 로드하고 캐시에 저장 (재시도 로직 포함)"""
+        import time
+        
+        max_retries = 3
+        retry_delay = 1  # 초
+        
+        for attempt in range(max_retries):
+            try:
+                url = "https://api.upbit.com/v1/market/all?is_details=true"
+                headers = {"accept": "application/json"}
+                
+                response = requests.get(url, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    markets = response.json()
+                    
+                    # 심볼별로 마켓 정보를 매핑
+                    for market in markets:
+                        market_code = market['market']  # 예: KRW-BTC
+                        if market_code.startswith('KRW-'):
+                            symbol = market_code.replace('KRW-', '')  # BTC
+                            self.market_info_cache[symbol.upper()] = {
+                                'market': market_code,
+                                'korean_name': market.get('korean_name', ''),
+                                'english_name': market.get('english_name', '')
+                            }
+                    
+                    log.info("업비트 마켓 정보 로드 완료: %d개 마켓", len(self.market_info_cache))
+                    return True
+                else:
+                    log.warning("마켓 정보 로드 실패 (시도 %d/%d): HTTP %d", 
+                              attempt + 1, max_retries, response.status_code)
+            except Exception as e:
+                log.warning("마켓 정보 로드 중 오류 (시도 %d/%d): %s", 
+                          attempt + 1, max_retries, e)
             
-            response = requests.get(url, headers=headers)
-            if response.status_code == 200:
-                markets = response.json()
-                
-                # 심볼별로 마켓 정보를 매핑
-                for market in markets:
-                    market_code = market['market']  # 예: KRW-BTC
-                    if market_code.startswith('KRW-'):
-                        symbol = market_code.replace('KRW-', '')  # BTC
-                        self.market_info_cache[symbol.upper()] = {
-                            'market': market_code,
-                            'korean_name': market.get('korean_name', ''),
-                            'english_name': market.get('english_name', '')
-                        }
-                
-                log.info("업비트 마켓 정보 로드 완료: %d개 마켓", len(self.market_info_cache))
-                return True
-            else:
-                log.error("마켓 정보 로드 실패: %s", response.text)
-                return False
-        except Exception as e:
-            log.error("마켓 정보 로드 중 오류: %s", e)
-            return False
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+        
+        log.error("마켓 정보 로드 최종 실패: %d회 시도 모두 실패", max_retries)
+        return False
     
     def find_market_by_ticker(self, ticker: str) -> Optional[str]:
         """티커 심볼로 업비트 마켓 코드 찾기"""

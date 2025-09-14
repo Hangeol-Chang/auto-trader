@@ -17,7 +17,7 @@ from model.crypto_rl_learner import CryptoReinforcementLearner
 
 
 def train_hybrid_model(market='KRW-BTC', epochs=200, balance=10000000, 
-                      num_steps=10, lr=0.0003, output_path='model/crypto_rl_models'):
+                      num_steps=10, lr=0.0003, output_path=None):
     """
     DNN+LSTM 하이브리드 모델 학습
     
@@ -29,6 +29,11 @@ def train_hybrid_model(market='KRW-BTC', epochs=200, balance=10000000,
         lr (float): 학습률
         output_path (str): 모델 저장 경로
     """
+    
+    # output_path가 None이면 기본 경로 설정
+    if output_path is None:
+        module_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        output_path = os.path.join(module_root, 'model', 'crypto_rl_models')
     
     print("🚀 DNN+LSTM 하이브리드 암호화폐 거래 AI 학습 시작")
     print(f"📊 마켓: {market}")
@@ -125,8 +130,8 @@ def main():
     parser.add_argument('--lr', type=float, default=0.0003,
                         help='학습률 (기본값: 0.0003)')
     
-    parser.add_argument('--output', type=str, default='model/crypto_rl_models',
-                        help='모델 저장 경로 (기본값: model/crypto_rl_models)')
+    parser.add_argument('--output', type=str, default=None,
+                        help='모델 저장 경로 (기본값: auto-trader/model/crypto_rl_models)')
     
     args = parser.parse_args()
     

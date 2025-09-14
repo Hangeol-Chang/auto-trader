@@ -1,6 +1,7 @@
 import multiprocessing
 import time
 import logging
+import os
 
 import jwt
 import uuid
@@ -42,7 +43,11 @@ ACCESS_KEY = ''
 SECRET_KEY = ''
 
 def read_token():
-    with open('./private/keys.json', 'r') as f:
+    # 현재 파일의 디렉토리를 기준으로 한 절대 경로
+    current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    keys_path = os.path.join(current_dir, 'private', 'keys.json')
+    
+    with open(keys_path, 'r') as f:
         keys = json.load(f)
         global ACCESS_KEY, SECRET_KEY
         ACCESS_KEY = keys['COIN'][0]['APP_KEY']

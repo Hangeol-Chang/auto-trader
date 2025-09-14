@@ -199,8 +199,13 @@ class CryptoRLModelLoader:
         }
 
 
-def list_available_models(models_dir: str = "model/crypto_rl_models") -> list:
+def list_available_models(models_dir: str = None) -> list:
     """사용 가능한 모델 목록 반환"""
+    if models_dir is None:
+        # 기본 경로 설정
+        module_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        models_dir = os.path.join(module_root, 'model', 'crypto_rl_models')
+    
     if not os.path.exists(models_dir):
         return []
     

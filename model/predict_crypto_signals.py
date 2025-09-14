@@ -115,7 +115,8 @@ def predict_crypto_signals(market: str = 'KRW-BTC', model_timestamp: str = None,
         
         # 결과를 파일로 저장 (선택사항)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = f"model/predictions_{market.replace('-', '_')}_{timestamp}.csv"
+        module_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        output_file = os.path.join(module_root, 'model', f"predictions_{market.replace('-', '_')}_{timestamp}.csv")
         predictions.to_csv(output_file, index=False)
         print(f"\n예측 결과가 저장되었습니다: {output_file}")
         

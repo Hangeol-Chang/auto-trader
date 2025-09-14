@@ -36,7 +36,8 @@ def predict_with_hybrid_model(market='KRW-BTC', timestamp=None, candles=20, num_
     print(f"🕯️  예측 캔들: {candles}")
     
     # 모델 파일 경로 구성
-    model_dir = "model/crypto_rl_models"
+    module_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    model_dir = os.path.join(module_root, 'model', 'crypto_rl_models')
     if timestamp:
         model_filename = f"value_network_{market.replace('-', '_')}_{timestamp}.weights.h5"
         summary_filename = f"training_summary_{market}_{timestamp}.json"
@@ -167,7 +168,7 @@ def predict_with_hybrid_model(market='KRW-BTC', timestamp=None, candles=20, num_
         
         # CSV 파일로 저장
         df_predictions = pd.DataFrame(predictions)
-        output_file = f"hybrid_predictions_{market}_{timestamp}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        output_file = os.path.join(module_root, 'model', f"hybrid_predictions_{market}_{timestamp}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
         df_predictions.to_csv(output_file, index=False, encoding='utf-8-sig')
         print(f"\n💾 예측 결과 저장: {output_file}")
         

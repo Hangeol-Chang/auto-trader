@@ -279,11 +279,14 @@ def initialize_auto_trader():
             if hasattr(server, 'read_upbit_keys'):
                 server.read_upbit_keys()
                 
-            # 업비트 마켓 정보 로드
-            logger.info("업비트 마켓 정보 로드 중...")
-            if hasattr(server, 'load_upbit_markets') and server.load_upbit_markets():
+            # 업비트 마켓 정보는 UpbitAPI 싱글톤에서 이미 로드됨
+            logger.info("업비트 마켓 정보 확인 중...")
+            from module.upbit_api import UpbitAPI
+            upbit_api = UpbitAPI()  # 싱글톤 인스턴스 가져오기
+            
+            if upbit_api.market_info_cache:
                 logger.info("마켓 정보 로드 완료. 지원 가능한 티커 수: %d", 
-                           len(getattr(server, 'MARKET_INFO_CACHE', {})))
+                           len(upbit_api.market_info_cache))
             else:
                 logger.warning("마켓 정보 로드 실패. 티커 매칭이 제한될 수 있습니다.")
         

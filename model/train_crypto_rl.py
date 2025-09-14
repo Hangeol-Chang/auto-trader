@@ -19,6 +19,11 @@ def train_crypto_model(market='KRW-BTC', interval='1m', epochs=200,
                       balance=10000000, net='dnn', lr=0.0005):
     """Crypto 강화학습 모델 학습"""
     
+    # auto-trader 모듈 기준 절대 경로 설정
+    module_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    models_dir = os.path.join(module_root, 'model', 'crypto_rl_models')
+    output_path = os.path.join(models_dir, market.replace("-", "_"))
+    
     print(f"=== Crypto RL Training ===")
     print(f"Market: {market}")
     print(f"Interval: {interval}")
@@ -41,7 +46,7 @@ def train_crypto_model(market='KRW-BTC', interval='1m', epochs=200,
             lr=lr,
             start_epsilon=0.9,
             discount_factor=0.95,
-            output_path=f'model/crypto_rl_models/{market.replace("-", "_")}'
+            output_path=output_path
         )
         
         print(f"Data loaded: {len(learner.chart_data)} candles")

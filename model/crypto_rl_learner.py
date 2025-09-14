@@ -41,7 +41,7 @@ class CryptoReinforcementLearner:
                  net='dnn', num_steps=1, lr=0.0005,
                  discount_factor=0.9, num_epochs=1000,
                  balance=1000000, start_epsilon=1,
-                 output_path='model/crypto_rl_models',
+                 output_path=None,
                  reuse_models=True):
         
         # 인자 확인
@@ -102,10 +102,15 @@ class CryptoReinforcementLearner:
         self.exploration_cnt = 0
         self.batch_size = 0
         
-        # 출력 경로
-        self.output_path = output_path
-        if not os.path.exists(output_path):
-            os.makedirs(output_path)
+        # 출력 경로 설정
+        if output_path is None:
+            module_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            self.output_path = os.path.join(module_root, 'model', 'crypto_rl_models')
+        else:
+            self.output_path = output_path
+            
+        if not os.path.exists(self.output_path):
+            os.makedirs(self.output_path)
     
     def load_data(self):
         """암호화폐 데이터 로드"""

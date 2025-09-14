@@ -3,7 +3,9 @@ import pandas as pd
 from datetime import datetime
 import os
 
-DATA_DIR = "data"
+# 모듈 기본 디렉토리 기준 절대 경로 설정
+MODULE_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DATA_DIR = os.path.join(MODULE_ROOT, "data")
 DB_PATH = os.path.join(DATA_DIR, "stock_data.db")
 # 날짜 관련
 os.makedirs(DATA_DIR, exist_ok=True)
