@@ -32,12 +32,12 @@ logger = logging.getLogger(__name__)
 @app.route('/')
 def index():
     """메인 페이지"""
-    return render_template('index.html')
+    return render_template('at_index.html')
 
 @app.route('/backtest')
 def index_backtest():
     """백테스트 페이지"""
-    return render_template('./src/backtest.html')
+    return render_template('at_backtest.html')
 
 ######################################################################
 ############### stock/ticker API #####################################
@@ -62,7 +62,7 @@ def get_stock_data():
             return jsonify({'error': '데이터를 찾을 수 없습니다.'}), 404
         
         # DataFrame을 JSON으로 변환
-        result = {
+        result = {  
             'stock_code': stock_code,
             'data_count': len(data),
             'data': data.to_dict('records'),

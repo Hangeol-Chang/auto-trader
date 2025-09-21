@@ -1,17 +1,17 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auto Trading Server Dashboard</title>
-    <link rel="stylesheet" href="{{ url_for('auto_trader.static', filename='css/style.css') }}">
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🚀 Auto Trading Server</h1>
-            <p>모듈화된 자동매매 서버 대시보드</p>
-        </div>
+{% extends "base.html" %}
+
+{% block title %}Auto Trading Server Dashboard{% endblock %}
+
+{% block header_title %}🚀 Auto Trading Server{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('auto_trader.static', filename='css/style.css') }}">
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 20px;">
+    <p style="color: #666;">모듈화된 자동매매 서버 대시보드</p>
+</div>
         
         <div class="status-card">
             <h2>서버 상태</h2>
@@ -128,13 +128,13 @@
             <p><strong>Ctrl + Shift + T:</strong> 전체 API 테스트</p>
             <p><strong>Ctrl + Shift + B:</strong> 빠른 잔고 확인</p>
         </div>
-        
-        <div class="footer">
-            <p>&copy; 2025 Auto Trading Server v2.1.0 - 암호화폐 & 주식 통합 거래 플랫폼</p>
-            <p><small>Upbit API + KIS API + TradingView Webhooks + Discord Notifications</small></p>
-        </div>
-    </div>
-    
-    <script src="static/js/main.js"></script>
-</body>
-</html>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('auto_trader.static', filename='js/main.js') }}"></script>
+{% endblock %}
+
+{% block footer_links %}
+<a href="/auto-trader">Auto Trader</a>
+{% endblock %}

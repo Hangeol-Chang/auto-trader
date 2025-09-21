@@ -1,25 +1,24 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auto Trader Dashboard</title>
-    <link rel="stylesheet" href="{{ url_for('auto_trader.static', filename='css/style.css') }}">
-    <!-- Plotly.js 라이브러리 추가 -->
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <!-- Input Field 컴포넌트 추가 -->
-    <script src="{{ url_for('auto_trader.static', filename='components/inputField.js') }}"></script>
-</head>
-<body>
-    <div id="header">
-        <h1>Auto Trader Dashboard</h1>
-        <nav>
-            <button>nav 1</button>
-            <button>nav 2</button>
-        </nav>
-    </div>
+{% extends "base.html" %}
 
-    <div id="body">
+{% block title %}Auto Trader Dashboard{% endblock %}
+
+{% block header_title %}🚀 Auto Trader Dashboard{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('auto_trader.static', filename='css/style.css') }}">
+{% endblock %}
+
+{% block extra_js %}
+<!-- Plotly.js 라이브러리 추가 -->
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<!-- Input Field 컴포넌트 추가 -->
+<script src="{{ url_for('auto_trader.static', filename='components/inputField.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 20px;">
+    <a href="/auto-trader/" class="back-btn" style="display: inline-block; padding: 8px 16px; background: #667eea; color: white; text-decoration: none; border-radius: 4px;">← Auto Trader 홈</a>
+</div>
         <div class="main-controller">
             <div class="unit">
                 <h2>Stock</h2>
@@ -148,5 +147,5 @@
             }
         });
     </script>
-</body>
-</html>
+
+{% endblock %}
