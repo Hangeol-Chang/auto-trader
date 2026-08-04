@@ -1,27 +1,23 @@
-dist/
-build/
-*.log
-*.env
+# credentials / secrets
+private/
 
 # python
 __pycache__/
-*.pyc
-*.pyo
-
-*.yaml
-*.yml
-.venv/
+*.py[cod]
 venv/
+.venv/
 
-private/
-guide/
-sample/
-data/**/*.csv
-data/**/*.json
+# env
+.env
+.env.*
 
-**/*.db
+# logs & runtime data
+logs/
+data/
+model/
+params/
 
-config/domain.txt
-PineScript
-
-data/ta-*.txt
+# os / editor
+.DS_Store
+.idea/
+.vscode/
